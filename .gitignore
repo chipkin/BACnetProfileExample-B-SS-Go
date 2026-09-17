@@ -1,0 +1,25 @@
+# Go build artifacts
+bacnet-b-ss-go
+bacnet-b-ss-go.exe
+*.exe
+*.exe~
+*.test
+*.out
+
+# The built native library - not committed; build or copy it per README.md.
+# Keep the directory itself (and this note) tracked.
+lib/*
+!lib/.gitkeep
+*.dll
+*.so
+*.dylib
+
+# Run artifacts from local smoke-testing
+*.log
+
+# Editors/OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
