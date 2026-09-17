@@ -28,7 +28,14 @@ package casbacnetstack
 /*
 #cgo CFLAGS: -I../submodules/cas-bacnet-stack/source
 #cgo windows LDFLAGS: -L../lib -lCASBACnetStack_x64_Release
-#cgo linux LDFLAGS: -L../lib -lCASBACnetStack_x64_Release
+// -Wl,-rpath,'$ORIGIN' makes the Linux dynamic linker search the
+// executable's own directory at runtime, matching Windows' default
+// same-directory DLL search. Without it, `go build` links fine but the
+// resulting binary fails at startup with "cannot open shared object
+// file" even when libCASBACnetStack_x64_Release.so sits right next to
+// it - -L only affects link-time symbol resolution, not the runtime
+// loader's search path. Found via a real CI failure, not by inspection.
+#cgo linux LDFLAGS: -L../lib -lCASBACnetStack_x64_Release -Wl,-rpath,'$ORIGIN'
 
 #include <string.h>
 #include "CASBACnetStackDLL.h"
