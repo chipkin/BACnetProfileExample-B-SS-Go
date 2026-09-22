@@ -112,8 +112,6 @@ const (
 	VendorName             = "Chipkin Automation Systems"
 	VendorIdentifier uint32 = 389
 	ModelName              = "CAS BACnet Stack Example - B-SS"
-	FirmwareRevision       = "1.0.0"
-	ApplicationSoftwareVersion = "1.0.0"
 
 	AnalogInputInstance            uint32 = 1 // "Bronze"
 	BinaryInputInstance            uint32 = 1 // "Emerald"
@@ -127,4 +125,20 @@ const (
 // MultiStateInputStateText: the three named states of Multi-State Input 1
 // ("Hot Pink"), 1-indexed per BACnet's State_Text array (index 0 = state 1).
 var MultiStateInputStateText = [3]string{"On", "Off", "Auto"}
+
+// ApplicationSoftwareVersion / FirmwareRevision: the Device object's
+// Application_Software_Version (12) and Firmware_Revision (44). These
+// cannot be plain compile-time constants: Application_Software_Version must
+// track this example's own real version (main.go's appVersion, which
+// common cannot import without creating an import cycle), and
+// Firmware_Revision must reflect the underlying CAS BACnet Stack's REAL
+// version - it names the platform underneath this app, not the app itself -
+// which is only known at runtime via the stack's own version-getter API.
+// main.go's run() sets both, once, at start-up (see printVersion() and the
+// assignment right after it) before the BACnet/IP socket is bound or any
+// callback is registered, so there is no concurrent-write hazard.
+var (
+	ApplicationSoftwareVersion = "0.0.0"
+	FirmwareRevision           = "0.0.0.0"
+)
 

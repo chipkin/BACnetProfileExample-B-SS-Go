@@ -3,6 +3,35 @@
 All notable changes to this example. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.1] - unreleased
+
+### Fixed
+
+- **`Application_Software_Version` (12) and `Firmware_Revision` (44) were
+  hardcoded to `"1.0.0"` and never updated as the example's real version
+  advanced** - the same issue found and fixed in
+  [BACnetProfileExample-B-SCHUB-CPP](https://github.com/chipkin/BACnetProfileExample-B-SCHUB-CPP)
+  v1.1.13 via a real device read with CAS BACnet Explorer. Both were plain
+  `const string`s in `common/constants.go`, consumed directly in
+  `cas_bacnet_stack/property_dispatch.go`.
+
+  Go's `const` cannot hold a value only known at runtime (the stack's own
+  version) or reference a value from a package that imports it back
+  (`common` cannot import `main`, which imports `common`), so both were
+  changed from `const` to package-level `var` in `common/constants.go`,
+  given placeholder start-up defaults, and populated once in `main.go`'s
+  `run()` - right after `printVersion()` confirms the cgo-linked native
+  library works, before the socket is bound or any callback is registered:
+  `common.ApplicationSoftwareVersion` is set directly from `main.go`'s own
+  `appVersion`; `common.FirmwareRevision` is built from the CAS BACnet
+  Stack's own `bacnet.GetAPIMajorVersion()`/`GetAPIMinorVersion()`/
+  `GetAPIPatchVersion()`/`GetAPIBuildVersion()` (the same 4 calls
+  `printVersion()` already uses for the start-up banner) - it names the
+  underlying platform, not this app. Verified with `go build ./...` (clean)
+  and a real ReadProperty (`bacpypes3`) against the running device:
+  `Application_Software_Version = "1.0.1"`,
+  `Firmware_Revision = "6.0.21.0"`.
+
 ## [1.0.0] - 2026-09-16
 
 First Go implementation of the BACnet B-SS (Smart Sensor) profile in this

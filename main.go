@@ -33,7 +33,7 @@ import (
 )
 
 const appName = "BACnet B-SS (Smart Sensor) Example - Go"
-const appVersion = "1.0.0"
+const appVersion = "1.0.1"
 
 func printVersion() {
 	fmt.Printf("%s v%s (common v%s)\n", appName, appVersion, common.CommonVersion)
@@ -91,6 +91,20 @@ func run() int {
 	// Windows). See README.md "Build the native CAS BACnet Stack library"
 	// for where to copy it.
 	printVersion()
+
+	// The Device object's Application_Software_Version (12) and
+	// Firmware_Revision (44) can't be plain constants: Application_Software_Version
+	// must track this example's own real version, and Firmware_Revision must
+	// reflect the underlying CAS BACnet Stack's REAL version, read from the
+	// stack itself - it names the platform underneath this app, not the app
+	// itself. Computed once here (the native library is already known to be
+	// linked and working - printVersion() above just called it), using the
+	// same 4 getter calls printVersion() uses for the banner, before the
+	// socket is bound or any callback is registered.
+	common.ApplicationSoftwareVersion = appVersion
+	common.FirmwareRevision = fmt.Sprintf("%d.%d.%d.%d",
+		bacnet.GetAPIMajorVersion(), bacnet.GetAPIMinorVersion(),
+		bacnet.GetAPIPatchVersion(), bacnet.GetAPIBuildVersion())
 
 	// --- Bind the BACnet/IP socket -------------------------------------------
 	if err := bacnet.SetupUDP(portValue); err != nil {
