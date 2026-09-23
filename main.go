@@ -33,7 +33,7 @@ import (
 )
 
 const appName = "BACnet B-SS (Smart Sensor) Example - Go"
-const appVersion = "1.0.1"
+const appVersion = "1.0.2"
 
 func printVersion() {
 	fmt.Printf("%s v%s (common v%s)\n", appName, appVersion, common.CommonVersion)

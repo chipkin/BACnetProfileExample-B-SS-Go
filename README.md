@@ -26,7 +26,7 @@ in this series.
 
 | Object | Instance | Name | Notes |
 |---|:---:|---|---|
-| Device | 389001 | Rainbow | vendor ID 389 (Chipkin), `--deviceID` configurable |
+| Device | 389001 | Chipkin Example B-SS | vendor ID 389 (Chipkin), `--deviceID` configurable |
 | Analog Input | 1 | Bronze | REAL, degrees Celsius, starts 21.5, nudged +/-1.1 via interactive commands |
 | Binary Input | 1 | Emerald | starts inactive |
 | Multi-State Input | 1 | Hot Pink | state 1 of 3 ("On"/"Off"/"Auto"), `State_Text` enabled |
@@ -217,7 +217,7 @@ Ctrl+C also stops the device cleanly.
 
 From another machine (or the same one) on the same subnet, use a BACnet
 explorer (e.g. YABE, VTS, or Chipkin's own BACnet Explorer) to send a
-Who-Is and confirm Device 389001 ("Rainbow") answers with an I-Am, then
+Who-Is and confirm Device 389001 ("Chipkin Example B-SS") answers with an I-Am, then
 browse its four objects and read their properties.
 
 ## How the Go binding differs from the C++/C#/Python/Rust editions

@@ -22,25 +22,25 @@ const (
 const (
 	PropertyIdentifierObjectName                 uint32 = 77
 	PropertyIdentifierObjectType                 uint32 = 79
-	PropertyIdentifierPresentValue                uint32 = 85
+	PropertyIdentifierPresentValue               uint32 = 85
 	PropertyIdentifierDescription                uint32 = 28
-	PropertyIdentifierVendorName                  uint32 = 121
-	PropertyIdentifierVendorIdentifier            uint32 = 120
-	PropertyIdentifierModelName                   uint32 = 70
-	PropertyIdentifierFirmwareRevision            uint32 = 44
-	PropertyIdentifierApplicationSoftwareVersion  uint32 = 12
-	PropertyIdentifierOutOfService                uint32 = 81
-	PropertyIdentifierUnits                       uint32 = 117
-	PropertyIdentifierPolarity                    uint32 = 84
-	PropertyIdentifierNumberOfStates              uint32 = 74
-	PropertyIdentifierStateText                   uint32 = 110
-	PropertyIdentifierApduLength                  uint32 = 399
-	PropertyIdentifierReferencePort               uint32 = 483
-	PropertyIdentifierBacnetIPUDPPort             uint32 = 412
-	PropertyIdentifierBacnetIPMode                uint32 = 408
-	PropertyIdentifierIPAddress                   uint32 = 400
-	PropertyIdentifierIPSubnetMask                uint32 = 411
-	PropertyIdentifierIPDefaultGateway            uint32 = 401
+	PropertyIdentifierVendorName                 uint32 = 121
+	PropertyIdentifierVendorIdentifier           uint32 = 120
+	PropertyIdentifierModelName                  uint32 = 70
+	PropertyIdentifierFirmwareRevision           uint32 = 44
+	PropertyIdentifierApplicationSoftwareVersion uint32 = 12
+	PropertyIdentifierOutOfService               uint32 = 81
+	PropertyIdentifierUnits                      uint32 = 117
+	PropertyIdentifierPolarity                   uint32 = 84
+	PropertyIdentifierNumberOfStates             uint32 = 74
+	PropertyIdentifierStateText                  uint32 = 110
+	PropertyIdentifierApduLength                 uint32 = 399
+	PropertyIdentifierReferencePort              uint32 = 483
+	PropertyIdentifierBacnetIPUDPPort            uint32 = 412
+	PropertyIdentifierBacnetIPMode               uint32 = 408
+	PropertyIdentifierIPAddress                  uint32 = 400
+	PropertyIdentifierIPSubnetMask               uint32 = 411
+	PropertyIdentifierIPDefaultGateway           uint32 = 401
 )
 
 // -- BACnet engineering units (Engineering_Units enumeration) ---------------
@@ -106,20 +106,20 @@ const BACnetNetworkPortDefault uint32 = 4194303
 // "CHANGE ALL OF THIS BEFORE YOU SHIP" if you turn this example into your
 // own device.
 const (
-	DeviceName        = "Rainbow"
+	DeviceName        = "Chipkin Example B-SS"
 	DeviceDescription = "Chipkin CAS BACnet Stack example - B-SS (Smart Sensor) profile. " +
 		"Demonstrates DS-RP-B: ReadProperty plus Who-Is/I-Am with read-only sensor objects."
-	VendorName             = "Chipkin Automation Systems"
+	VendorName              = "Chipkin Automation Systems"
 	VendorIdentifier uint32 = 389
-	ModelName              = "CAS BACnet Stack Example - B-SS"
+	ModelName               = "CAS BACnet Stack Example - B-SS"
 
-	AnalogInputInstance            uint32 = 1 // "Bronze"
-	BinaryInputInstance            uint32 = 1 // "Emerald"
-	MultiStateInputInstance        uint32 = 1 // "Hot Pink"
-	MultiStateInputNumberOfStates  uint32 = 3
-	BinaryInput1Value              uint32 = 0 // inactive - the series-wide starting value
-	MultiStateInput1Value          uint32 = 1 // state 1 ("On")
-	MaxApduLength                  uint32 = 1476 // BACnet/IP APDU length
+	AnalogInputInstance           uint32 = 1 // "Bronze"
+	BinaryInputInstance           uint32 = 1 // "Emerald"
+	MultiStateInputInstance       uint32 = 1 // "Hot Pink"
+	MultiStateInputNumberOfStates uint32 = 3
+	BinaryInput1Value             uint32 = 0    // inactive - the series-wide starting value
+	MultiStateInput1Value         uint32 = 1    // state 1 ("On")
+	MaxApduLength                 uint32 = 1476 // BACnet/IP APDU length
 )
 
 // MultiStateInputStateText: the three named states of Multi-State Input 1
@@ -141,4 +141,3 @@ var (
 	ApplicationSoftwareVersion = "0.0.0"
 	FirmwareRevision           = "0.0.0.0"
 )
-
