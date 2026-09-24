@@ -22,25 +22,25 @@ const (
 const (
 	PropertyIdentifierObjectName                 uint32 = 77
 	PropertyIdentifierObjectType                 uint32 = 79
-	PropertyIdentifierPresentValue                uint32 = 85
+	PropertyIdentifierPresentValue               uint32 = 85
 	PropertyIdentifierDescription                uint32 = 28
-	PropertyIdentifierVendorName                  uint32 = 121
-	PropertyIdentifierVendorIdentifier            uint32 = 120
-	PropertyIdentifierModelName                   uint32 = 70
-	PropertyIdentifierFirmwareRevision            uint32 = 44
-	PropertyIdentifierApplicationSoftwareVersion  uint32 = 12
-	PropertyIdentifierOutOfService                uint32 = 81
-	PropertyIdentifierUnits                       uint32 = 117
-	PropertyIdentifierPolarity                    uint32 = 84
-	PropertyIdentifierNumberOfStates              uint32 = 74
-	PropertyIdentifierStateText                   uint32 = 110
-	PropertyIdentifierApduLength                  uint32 = 399
-	PropertyIdentifierReferencePort               uint32 = 483
-	PropertyIdentifierBacnetIPUDPPort             uint32 = 412
-	PropertyIdentifierBacnetIPMode                uint32 = 408
-	PropertyIdentifierIPAddress                   uint32 = 400
-	PropertyIdentifierIPSubnetMask                uint32 = 411
-	PropertyIdentifierIPDefaultGateway            uint32 = 401
+	PropertyIdentifierVendorName                 uint32 = 121
+	PropertyIdentifierVendorIdentifier           uint32 = 120
+	PropertyIdentifierModelName                  uint32 = 70
+	PropertyIdentifierFirmwareRevision           uint32 = 44
+	PropertyIdentifierApplicationSoftwareVersion uint32 = 12
+	PropertyIdentifierOutOfService               uint32 = 81
+	PropertyIdentifierUnits                      uint32 = 117
+	PropertyIdentifierPolarity                   uint32 = 84
+	PropertyIdentifierNumberOfStates             uint32 = 74
+	PropertyIdentifierStateText                  uint32 = 110
+	PropertyIdentifierApduLength                 uint32 = 399
+	PropertyIdentifierReferencePort              uint32 = 483
+	PropertyIdentifierBacnetIPUDPPort            uint32 = 412
+	PropertyIdentifierBacnetIPMode               uint32 = 408
+	PropertyIdentifierIPAddress                  uint32 = 400
+	PropertyIdentifierIPSubnetMask               uint32 = 411
+	PropertyIdentifierIPDefaultGateway           uint32 = 401
 )
 
 // -- BACnet engineering units (Engineering_Units enumeration) ---------------
@@ -106,25 +106,38 @@ const BACnetNetworkPortDefault uint32 = 4194303
 // "CHANGE ALL OF THIS BEFORE YOU SHIP" if you turn this example into your
 // own device.
 const (
-	DeviceName        = "Rainbow"
+	DeviceName        = "Chipkin Example B-SS"
 	DeviceDescription = "Chipkin CAS BACnet Stack example - B-SS (Smart Sensor) profile. " +
 		"Demonstrates DS-RP-B: ReadProperty plus Who-Is/I-Am with read-only sensor objects."
-	VendorName             = "Chipkin Automation Systems"
+	VendorName              = "Chipkin Automation Systems"
 	VendorIdentifier uint32 = 389
-	ModelName              = "CAS BACnet Stack Example - B-SS"
-	FirmwareRevision       = "1.0.0"
-	ApplicationSoftwareVersion = "1.0.0"
+	ModelName               = "CAS BACnet Stack Example - B-SS"
 
-	AnalogInputInstance            uint32 = 1 // "Bronze"
-	BinaryInputInstance            uint32 = 1 // "Emerald"
-	MultiStateInputInstance        uint32 = 1 // "Hot Pink"
-	MultiStateInputNumberOfStates  uint32 = 3
-	BinaryInput1Value              uint32 = 0 // inactive - the series-wide starting value
-	MultiStateInput1Value          uint32 = 1 // state 1 ("On")
-	MaxApduLength                  uint32 = 1476 // BACnet/IP APDU length
+	AnalogInputInstance           uint32 = 1 // "Bronze"
+	BinaryInputInstance           uint32 = 1 // "Emerald"
+	MultiStateInputInstance       uint32 = 1 // "Hot Pink"
+	MultiStateInputNumberOfStates uint32 = 3
+	BinaryInput1Value             uint32 = 0    // inactive - the series-wide starting value
+	MultiStateInput1Value         uint32 = 1    // state 1 ("On")
+	MaxApduLength                 uint32 = 1476 // BACnet/IP APDU length
 )
 
 // MultiStateInputStateText: the three named states of Multi-State Input 1
 // ("Hot Pink"), 1-indexed per BACnet's State_Text array (index 0 = state 1).
 var MultiStateInputStateText = [3]string{"On", "Off", "Auto"}
 
+// ApplicationSoftwareVersion / FirmwareRevision: the Device object's
+// Application_Software_Version (12) and Firmware_Revision (44). These
+// cannot be plain compile-time constants: Application_Software_Version must
+// track this example's own real version (main.go's appVersion, which
+// common cannot import without creating an import cycle), and
+// Firmware_Revision must reflect the underlying CAS BACnet Stack's REAL
+// version - it names the platform underneath this app, not the app itself -
+// which is only known at runtime via the stack's own version-getter API.
+// main.go's run() sets both, once, at start-up (see printVersion() and the
+// assignment right after it) before the BACnet/IP socket is bound or any
+// callback is registered, so there is no concurrent-write hazard.
+var (
+	ApplicationSoftwareVersion = "0.0.0"
+	FirmwareRevision           = "0.0.0.0"
+)
