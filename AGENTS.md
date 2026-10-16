@@ -21,9 +21,9 @@ cleverness, and keep it a faithful translation of the C++ `main.cpp`.
   and `run()` (device and object set-up, the tick loop).
 - `property_dispatch.go` - section 3: the `getProperty*` callbacks.
 - `cgobridge/` - the **only** package with `import "C"`. `stack.go` holds the
-  cgo flags (the stack's header included **in place** from
-  `submodules/cas-bacnet-stack/source`, the library linked from
-  `submodules/cas-bacnet-stack/bin`) and the `BACnetStack_*` wrappers;
+  cgo flags, the library search and load, and the `BACnetStack_*` wrappers;
+  `stack_adapter.c` compiles the stack's generated `adapters/cpp/` adapter
+  **in place** from the submodule (DLL mode, run-time loading);
   `callbacks.go` the `//export`ed callbacks and the BACnet/IP transport;
   `trampolines.c` the C halves of the callbacks.
 - `common/` - cgo-free Go helper (UDP socket, IPv4, command line, BACnet
@@ -71,8 +71,10 @@ DLL / `.so`** - it lives in the submodule's `bin/` (gitignored there), and
 ./build/BACnetExampleBSS [--port 47808] [--deviceID 389001]
 ```
 
-On Windows put `submodules\cas-bacnet-stack\bin` on `PATH` first (the DLL is
-loaded from there). Interactive commands: `h`, `q`, `u`, `d`, each followed by
+The stack library is loaded at run time (the stack's `adapters/cpp/` in DLL mode,
+compiled in place by `cgobridge/stack_adapter.c`) from the executable's folder,
+else from `submodules/cas-bacnet-stack/bin/`; without it the program prints the
+series' missing-library message (rule 2b) and exits 1. Interactive commands: `h`, `q`, `u`, `d`, each followed by
 Enter.
 
 ## Conventions

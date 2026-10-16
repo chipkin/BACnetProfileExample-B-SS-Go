@@ -32,10 +32,9 @@ BACnet way, and the C++ edition's Wire Tests run against this program unchanged.
 
 - **Stack Pin `ec60c718` -> `64b2cfac5`** (`6.x`, CAS BACnet Stack 6.0.23).
 - **The stack's adapter is used in place, never copied.** The vendored, edited
-  copy of the Go adapter (`cas_bacnet_stack/`) is gone. cgo now includes
-  `submodules/cas-bacnet-stack/source/CASBACnetStackDLL.h` in place and links
-  the library from `submodules/cas-bacnet-stack/bin/`, where it is built (and
-  where the program loads it from: `PATH` on Windows, rpath on Linux). The
+  copy of the Go adapter (`cas_bacnet_stack/`) is gone. The stack's generated
+  C++ adapter (`adapters/cpp/`, DLL mode) is compiled in place from the
+  submodule (`cgobridge/stack_adapter.c`). The
   stack's `adapters/golang/CASBACnetStackAdapter.go` does not compile at this
   pin and is a `package main` sample, so `cgobridge/` carries the callback
   trampolines it would provide, marked as a workaround (adapter defect, not
@@ -51,6 +50,19 @@ BACnet way, and the C++ edition's Wire Tests run against this program unchanged.
 - Interactive commands read stdin byte by byte: `h`, `q`, `u`, `d` (key, then
   Enter); a `q` written to a pipe quits at once, so the Wire Tests stop the
   example cleanly.
+- **The stack library is loaded at run time, and a release ships without it**
+  (owner rule 2b). `LoadBACnetFunctions()` (`LoadLibrary`/`dlopen` through the
+  adapter) loads it from the executable's folder, else - in a development
+  checkout - from `submodules/cas-bacnet-stack/bin/`. The executable no longer
+  imports `CASBACnetStack_x64_Release.dll` (`objdump -p` lists only
+  `KERNEL32.dll` and the C runtime), so a missing library no longer stops it
+  before `main()` with `0xC0000135`: it prints the series' message, `ERROR: This
+  example cannot run without the CAS BACnet Stack library.`, with the file name
+  and every folder it looked in, to stderr, and exits 1. `--help` and
+  `--version` work without the library. `release.yml` packages the executable
+  and docs only, fails on any `CASBACnetStack*` / `.dll` / `.so` / `.node` in
+  the package, and runs the packaged executable without the library to check
+  the message and exit code.
 - `common/` 1.1.0 (see `common/CHANGELOG.md`).
 - Protocol_Revision 30 (from the stack at the pin).
 - `.gitignore` covers every stack binary name; `release.yml` builds the stack

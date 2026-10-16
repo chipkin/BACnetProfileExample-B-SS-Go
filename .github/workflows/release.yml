@@ -4,13 +4,16 @@
 #
 # Two stages: (1) build the CAS BACnet Stack shared library from the stack submodule into
 # submodules/cas-bacnet-stack/bin/ (MSBuild ReleaseDll|x64 on Windows, g++ -shared on Linux -
-# README "Build"), then (2) `go build` this project with cgo, which includes the stack's header
-# in place from the submodule and links the library from that bin/ folder.
+# README "Build"), then (2) `go build` this project with cgo. The executable loads the library
+# at run time (the stack's own adapter in DLL mode): it has no load-time dependency on it, and
+# finds it next to itself or, in this checkout, in submodules/cas-bacnet-stack/bin/.
 #
-# THE STACK LIBRARY IS NEVER RELEASED. It is built here only to compile and test the example:
-# no .dll / .so goes into any uploaded artifact or release asset (the "Package" step copies only
-# the example's own executable, metrics and docs, and then checks that). Users build the library
-# from the submodule themselves (README "Build").
+# THE STACK LIBRARY IS NEVER RELEASED. It is built here only to compile and test the example.
+# A release ships the example's executable and docs; the "Package" step fails if any
+# CASBACnetStack* / .dll / .so / .node file is in the package, and the next step runs the
+# packaged executable without the library and checks that it prints the series'
+# missing-library message and exits 1. Users build the library from the submodule themselves
+# (README "Build").
 #
 # The CAS BACnet Stack is a PRIVATE git submodule: the repository secret CAS_STACK_PAT must
 # hold a PAT with read access to chipkin/cas-bacnet-stack.
@@ -82,8 +85,6 @@ jobs:
             /p:Configuration=ReleaseDll /p:Platform=x64 /p:PlatformToolset=v143 /m
           if ($LASTEXITCODE -ne 0) { throw "MSBuild failed with exit code $LASTEXITCODE" }
           Get-ChildItem submodules\cas-bacnet-stack\bin\CASBACnetStack_x64_Release.dll
-          # The example loads the DLL from the submodule's bin/ (README "Run"): put it on PATH.
-          "$PWD\submodules\cas-bacnet-stack\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build the CAS BACnet Stack library (Linux - g++ shared, into the submodule's bin/)
         if: runner.os == 'Linux'
@@ -128,7 +129,7 @@ jobs:
             "example": "BACnetProfileExampleBSSGo",
             "app_version": "$appver",
             "os": "${{ matrix.os }}",
-            "link_mode": "cgo-shared-library",
+            "link_mode": "cgo-runtime-load (adapters/cpp DLL mode)",
             "stack_commit": "${{ steps.stack.outputs.sha }}",
             "stack_version": "$stackver",
             "binary_bytes": $bytes,
@@ -161,10 +162,30 @@ jobs:
             cp README.md TUTORIAL.md LICENSE dist/
             cp docs/PICS.md dist/
           fi
-          if find dist \( -iname '*.dll' -o -iname '*.so' -o -iname '*.so.*' -o -iname '*.dylib' -o -iname '*.node' -o -iname '*.lib' \) | grep .; then
+          if find dist \( -iname 'CASBACnetStack*' -o -iname 'libCASBACnetStack*' -o -iname '*.dll' -o -iname '*.so' -o -iname '*.so.*' -o -iname '*.dylib' -o -iname '*.node' \) | grep .; then
             echo "FAIL: a CAS BACnet Stack binary is in the package - it is never released"; exit 1
           fi
           ls -l dist
+
+      # Rule 2b: the released executable, run where there is no stack library, must say so
+      # clearly and exit 1 - never an OS loader error. It runs from an empty folder outside
+      # this checkout, so the development fallback (submodules/cas-bacnet-stack/bin/) is not found.
+      - name: Packaged executable without the stack library - clear message, exit 1
+        shell: bash
+        run: |
+          nolib="$RUNNER_TEMP/nolib"
+          exe="$(basename "${{ matrix.exe }}")"
+          mkdir -p "$nolib"
+          cp "dist/$exe" "$nolib/"
+          set +e
+          "$nolib/$exe" --port 47823 > "$nolib/out.txt" 2>&1
+          code=$?
+          set -e
+          cat "$nolib/out.txt"
+          first=$(head -n 1 "$nolib/out.txt" | tr -d '\r')
+          [ "$first" = "ERROR: This example cannot run without the CAS BACnet Stack library." ] || { echo "FAIL: unexpected first line: $first"; exit 1; }
+          [ "$code" -eq 1 ] || { echo "FAIL: exit code $code, expected 1"; exit 1; }
+          echo "OK: missing-library message and exit code 1"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

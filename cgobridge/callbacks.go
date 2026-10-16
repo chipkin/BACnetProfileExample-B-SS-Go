@@ -3,7 +3,7 @@
 //
 // callbacks.go - the stack's callbacks, and the BACnet/IP transport behind them
 // =============================================================================
-// WORKAROUND - ADAPTER DEFECT, NOT FILED (see stack.go and TODO.md). The
+// WORKAROUND - ADAPTER DEFECT, cas-bacnet-stack#3968 (see TODO.md). The
 // callback trampolines below and in trampolines.c are what the stack's Go
 // adapter would supply if it compiled at the pin. Each callback has three
 // layers, because cgo cannot hand a Go function to C directly:
@@ -12,10 +12,9 @@
 //   signature) -> goCallbackXxx (Go, //export'ed below) -> the Go function
 //   main.go registered.
 //
-// Registrations cast each C trampoline to *[0]byte, the type cgo gives a C
-// function-pointer parameter; passing it bare does not compile (stack.go).
-// The trampolines themselves are declared and defined with the header's
-// parameter types, so a signature change in the header still fails to build.
+// The registrations are made in C (cgobridge_register* in trampolines.c), where
+// the compiler checks each trampoline against the adapter's generated
+// callback type - a signature change in the stack's header fails the build.
 //
 // This file's cgo preamble holds DECLARATIONS ONLY: cgo copies the preamble of
 // a file that has //export functions into _cgo_export.c as well, so a
@@ -35,17 +34,16 @@ package cgobridge
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include "CASBACnetStackDLL.h"
+#include "CASBACnetStackAdapterTypes.h"
 
-extern uint16_t fpCallbackReceiveMessageForPort(uint8_t* message, const uint16_t maxMessageLength, uint8_t* sourceConnectionString, uint8_t* sourceConnectionStringLength, uint8_t* destinationConnectionString, uint8_t* destinationConnectionStringLength, const uint8_t maxConnectionStringLength, uint32_t* networkPortInstance);
-extern uint16_t fpCallbackSendMessageForPort(const uint8_t* message, const uint16_t messageLength, const uint8_t* connectionString, const uint8_t connectionStringLength, const uint32_t networkPortInstance, bool broadcast);
-extern CASBACnetTime fpCallbackGetSystemTime();
-extern bool fpCallbackGetPropertyCharString(const uint32_t deviceInstance, const uint16_t objectType, const uint32_t objectInstance, const uint32_t propertyIdentifier, char* value, uint32_t* valueElementCount, const uint32_t maxElementCount, uint8_t* encodingType, const bool useArrayIndex, const uint32_t propertyArrayIndex, uint32_t* errorCode);
-extern bool fpCallbackGetPropertyReal(const uint32_t deviceInstance, const uint16_t objectType, const uint32_t objectInstance, const uint32_t propertyIdentifier, float* value, const bool useArrayIndex, const uint32_t propertyArrayIndex, uint32_t* errorCode);
-extern bool fpCallbackGetPropertyBool(const uint32_t deviceInstance, const uint16_t objectType, const uint32_t objectInstance, const uint32_t propertyIdentifier, bool* value, const bool useArrayIndex, const uint32_t propertyArrayIndex, uint32_t* errorCode);
-extern bool fpCallbackGetPropertyEnumerated(const uint32_t deviceInstance, const uint16_t objectType, const uint32_t objectInstance, const uint32_t propertyIdentifier, uint32_t* value, const bool useArrayIndex, const uint32_t propertyArrayIndex, uint32_t* errorCode);
-extern bool fpCallbackGetPropertyUnsignedInteger(const uint32_t deviceInstance, const uint16_t objectType, const uint32_t objectInstance, const uint32_t propertyIdentifier, uint32_t* value, const bool useArrayIndex, const uint32_t propertyArrayIndex, uint32_t* errorCode);
-extern bool fpCallbackGetPropertyOctetString(const uint32_t deviceInstance, const uint16_t objectType, const uint32_t objectInstance, const uint32_t propertyIdentifier, uint8_t* value, uint32_t* valueElementCount, const uint32_t maxElementCount, const bool useArrayIndex, const uint32_t propertyArrayIndex, uint32_t* errorCode);
+extern void cgobridge_registerCommonCallbacks(void);
+extern void cgobridge_registerGetPropertyReal(void);
+extern void cgobridge_registerGetPropertyEnumerated(void);
+extern void cgobridge_registerGetPropertyUnsignedInteger(void);
+extern void cgobridge_registerGetPropertyCharString(void);
+extern void cgobridge_registerGetPropertyBool(void);
+extern void cgobridge_registerGetPropertyOctetString(void);
+
 */
 import "C"
 
@@ -91,9 +89,7 @@ func ShutdownUDP() { udp.Shutdown() }
 
 // RegisterCommonCallbacks registers the transport and time callbacks.
 func RegisterCommonCallbacks() {
-	C.BACnetStack_RegisterCallbackReceiveMessageForPort((*[0]byte)(unsafe.Pointer(C.fpCallbackReceiveMessageForPort)))
-	C.BACnetStack_RegisterCallbackSendMessageForPort((*[0]byte)(unsafe.Pointer(C.fpCallbackSendMessageForPort)))
-	C.BACnetStack_RegisterCallbackGetSystemTime((*[0]byte)(unsafe.Pointer(C.fpCallbackGetSystemTime)))
+	C.cgobridge_registerCommonCallbacks()
 }
 
 // SendIAm broadcasts an unsolicited I-Am to the LOCAL subnet broadcast (the
@@ -238,37 +234,37 @@ var (
 // RegisterCallbackGetPropertyReal is BACnetStack_RegisterCallbackGetPropertyReal.
 func RegisterCallbackGetPropertyReal(callback GetPropertyRealFunc) {
 	getPropertyReal = callback
-	C.BACnetStack_RegisterCallbackGetPropertyReal((*[0]byte)(unsafe.Pointer(C.fpCallbackGetPropertyReal)))
+	C.cgobridge_registerGetPropertyReal()
 }
 
 // RegisterCallbackGetPropertyEnumerated is BACnetStack_RegisterCallbackGetPropertyEnumerated.
 func RegisterCallbackGetPropertyEnumerated(callback GetPropertyUint32Func) {
 	getPropertyEnumerated = callback
-	C.BACnetStack_RegisterCallbackGetPropertyEnumerated((*[0]byte)(unsafe.Pointer(C.fpCallbackGetPropertyEnumerated)))
+	C.cgobridge_registerGetPropertyEnumerated()
 }
 
 // RegisterCallbackGetPropertyUnsignedInteger is BACnetStack_RegisterCallbackGetPropertyUnsignedInteger.
 func RegisterCallbackGetPropertyUnsignedInteger(callback GetPropertyUint32Func) {
 	getPropertyUnsignedInteger = callback
-	C.BACnetStack_RegisterCallbackGetPropertyUnsignedInteger((*[0]byte)(unsafe.Pointer(C.fpCallbackGetPropertyUnsignedInteger)))
+	C.cgobridge_registerGetPropertyUnsignedInteger()
 }
 
 // RegisterCallbackGetPropertyCharacterString is BACnetStack_RegisterCallbackGetPropertyCharacterString.
 func RegisterCallbackGetPropertyCharacterString(callback GetPropertyCharStringFunc) {
 	getPropertyCharString = callback
-	C.BACnetStack_RegisterCallbackGetPropertyCharacterString((*[0]byte)(unsafe.Pointer(C.fpCallbackGetPropertyCharString)))
+	C.cgobridge_registerGetPropertyCharString()
 }
 
 // RegisterCallbackGetPropertyBool is BACnetStack_RegisterCallbackGetPropertyBool.
 func RegisterCallbackGetPropertyBool(callback GetPropertyBoolFunc) {
 	getPropertyBool = callback
-	C.BACnetStack_RegisterCallbackGetPropertyBool((*[0]byte)(unsafe.Pointer(C.fpCallbackGetPropertyBool)))
+	C.cgobridge_registerGetPropertyBool()
 }
 
 // RegisterCallbackGetPropertyOctetString is BACnetStack_RegisterCallbackGetPropertyOctetString.
 func RegisterCallbackGetPropertyOctetString(callback GetPropertyOctetStringFunc) {
 	getPropertyOctetString = callback
-	C.BACnetStack_RegisterCallbackGetPropertyOctetString((*[0]byte)(unsafe.Pointer(C.fpCallbackGetPropertyOctetString)))
+	C.cgobridge_registerGetPropertyOctetString()
 }
 
 //export goCallbackGetPropertyReal

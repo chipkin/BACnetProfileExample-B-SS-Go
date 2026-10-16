@@ -231,8 +231,8 @@ callbacks in `property_dispatch.go`.)
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| Windows: the program exits at once, printing nothing (exit code `0xC0000135`, or a "CASBACnetStack_x64_Release.dll was not found" dialog) | The stack's DLL is not on the loader's search path. Put `submodules\cas-bacnet-stack\bin` on `PATH` (README "Run"), or copy the DLL into the gitignored `build\` folder. |
-| `go build`: `cannot find -lCASBACnetStack_x64_Release` | The stack's library has not been built into `submodules/cas-bacnet-stack/bin/` yet (README "Build", step 1). |
+| `ERROR: This example cannot run without the CAS BACnet Stack library.` (exit code 1) | The stack library is in none of the folders the message lists. Build it from the submodule (README "Build", step 1) and put it next to the executable, or run the executable from this checkout (it also looks in `submodules/cas-bacnet-stack/bin/`). |
+| `Error: failed to load the CAS BACnet Stack from <folder>: ...` | The library was found but could not be used: a different architecture (it must be x64), a stack from another major version (`stack API major version ...`), or a missing export (`missing export: ...` - a wrong or corrupt build). Rebuild it from the submodule at this Stack Pin. |
 | `go build`: `cgo: C compiler "gcc" not found` | cgo needs a gcc. On Windows install MinGW-w64 (MSYS2) and put its `bin` on `PATH`. |
 | `go build`: `CASBACnetStackDLL.h: No such file or directory` | Submodules not checked out: `git submodule update --init --recursive`. |
 | `go build ./...` or `go vet ./...` fails inside `submodules/` | `./...` walks into the stack's own Go files. Name the packages: `go vet . ./cgobridge ./common`. |

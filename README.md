@@ -145,7 +145,7 @@ This example **builds against the CAS BACnet Stack, which is a commercial
 Chipkin product** - it is not free or open source, and there is no
 public/trial build. The stack is referenced here as the **private** git
 submodule `submodules/cas-bacnet-stack` (tracking the `6.x` branch). The Go
-edition links against the stack as a **shared library**
+edition loads the stack at run time as a **shared library**
 (`CASBACnetStack_x64_Release.dll` on Windows / `libCASBACnetStack_x64_Release.so`
 on Linux) that you build from that submodule - this repository and its releases
 never contain it. **To get the CAS BACnet Stack (and access to build this
@@ -197,8 +197,8 @@ Already cloned without `--recursive`? Run `git submodule update --init --recursi
 
 ### 1. Build the CAS BACnet Stack library from the submodule
 
-The library goes into the submodule's own `bin/` folder; the example links it
-from there and loads it from there at run time. Do not copy it into this
+The library goes into the submodule's own `bin/` folder, where the example
+finds it at run time when it is run from this checkout. Do not commit it to this
 repository (it is gitignored, and never part of a release).
 
 **Windows** - the stack's MSVC project has a `ReleaseDll|x64` configuration
@@ -224,8 +224,8 @@ g++ -shared -fPIC -std=c++17 -O2 \
     -o submodules/cas-bacnet-stack/bin/libCASBACnetStack_x64_Release.so
 ```
 
-Only the **Release** library is used: `cgobridge/stack.go` links
-`CASBACnetStack_x64_Release`, and there is no `DebugDll` configuration.
+Only the **Release** library is used: the adapter loads `CASBACnetStack_x64_Release`
+(`BACNET_LIB_FILE`), and there is no `DebugDll` configuration.
 
 ### 2. Build the example
 
@@ -243,22 +243,35 @@ C++ edition's name). `go vet . ./cgobridge ./common` should be clean; avoid
 
 ## Run
 
-The executable loads the stack library when it starts, from the submodule's
-`bin/` folder:
+The executable loads the stack library at run time (not the operating system
+at start-up), from the first of these folders that has it:
 
-- **Linux:** nothing to do - the build records that folder as the executable's
-  library search path (rpath).
-- **Windows:** put the folder on `PATH` for the session:
+1. the **run directory** - the folder that holds the executable;
+2. in a development checkout, `submodules/cas-bacnet-stack/bin/` (found by
+   looking upwards from the executable's folder) - so `build/BACnetExampleBSS`
+   in this checkout needs no set-up.
 
-  ```powershell
-  $env:PATH = "$PWD\submodules\cas-bacnet-stack\bin;$env:PATH"
-  .\build\BACnetExampleBSS.exe --port 47821
-  ```
+A **release** of this example ships the executable without the stack library
+(it is a commercially licensed product). Run on its own, it stops with this
+message on stderr and exit code 1:
 
-  Without it Windows refuses to start the program ("CASBACnetStack_x64_Release.dll
-  was not found", exit code `0xC0000135`). If you prefer a copy next to the
-  executable, copy the DLL into `build\` - that folder is gitignored, so the
-  copy never reaches git.
+```
+ERROR: This example cannot run without the CAS BACnet Stack library.
+
+  Missing file: CASBACnetStack_x64_Release.dll
+  Looked in:    C:\BACnetExampleBSS
+
+The CAS BACnet Stack is a commercially licensed (paid) library from Chipkin.
+It is not included in this release, so the example cannot start without it.
+
+  - To license the CAS BACnet Stack: https://store.chipkin.com/contact-us
+  - Licensed customers: build the library from the cas-bacnet-stack submodule
+    (see README.md) and place CASBACnetStack_x64_Release.dll next to this executable.
+```
+
+Licensed customers build the library (see [Build](#build)) and put
+`CASBACnetStack_x64_Release.dll` (Windows) / `libCASBACnetStack_x64_Release.so`
+(Linux) next to the executable. `--help` and `--version` work without it.
 
 ```bash
 ./build/BACnetExampleBSS --port 47821 --deviceID 12345
@@ -342,8 +355,8 @@ single executable at the path they expect (`build/BACnetExampleBSS`).
 | `sensing_test.py` | **The Profile Function.** Reads the three sensors again and again for 12 s; the readings follow the Simulation (0.5 C steps, a toggle every 3 s, states in order). Fails against a sensor that serves constants. |
 | `failure_modes_test.py` | **The Failure Modes.** Breaks the simulated sensor wire: `Reliability` `open-loop`, `Status_Flags` FAULT, a frozen reading; repairs it: all clear, the reading moves. Then the errors for an unknown object / property / array index, and the Reject for a WriteProperty. |
 
-Run them all after the build (on Windows, with the stack's `bin/` on `PATH` as
-in [Run](#run)):
+Run them all after the build (the executable finds the library in the
+submodule's `bin/`, see [Run](#run)):
 
 ```bash
 python tests/run_wire_tests.py                    # default --exe build/BACnetExampleBSS(.exe), --port 47821
@@ -361,14 +374,16 @@ If you have read the C++ edition, the object model and callback shapes are the
 same; this section is only about what is mechanically different because Go
 reaches the stack through cgo.
 
-- **The stack's header, in place.** `cgobridge/stack.go` points cgo at
-  `submodules/cas-bacnet-stack/source/CASBACnetStackDLL.h`; cgo generates and
-  type-checks every `BACnetStack_*` binding from it. Nothing from the stack is
-  copied into this repository.
-- **Linked at build time.** cgo links the shared library from the submodule's
-  `bin/`, so the operating system loads it before `main()` runs - there is no
-  `LoadBACnetFunctions()` step, and a missing library stops the program before
-  it prints anything (see [Run](#run)).
+- **The stack's own adapter, in place, loaded at run time.**
+  `cgobridge/stack_adapter.c` compiles the stack's generated C++ adapter
+  (`submodules/cas-bacnet-stack/adapters/cpp/`) straight from the submodule in
+  its DLL mode: every `BACnetStack_*` is a function pointer that
+  `LoadBACnetFunctions()` binds with `LoadLibrary`/`GetProcAddress` (Windows)
+  or `dlopen`/`dlsym` (Linux), after checking the stack's API version - the same
+  call the C++ edition makes first thing in `main()`. The executable has no
+  load-time dependency on the stack library (its import table does not list
+  it), so a missing library is reported by the program itself (see
+  [Run](#run)). Nothing from the stack is copied into this repository.
 - **Callback trampolines.** cgo cannot hand a Go function to C, so every
   callback the stack calls goes C wrapper (`cgobridge/trampolines.c`, the
   header's exact signature) -> `//export`ed Go function

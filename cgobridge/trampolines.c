@@ -3,17 +3,19 @@
 //
 // trampolines.c - the C halves of the stack's callbacks
 // =============================================================================
-// WORKAROUND - ADAPTER DEFECT, NOT FILED (see stack.go and TODO.md): the
+// WORKAROUND - ADAPTER DEFECT, cas-bacnet-stack#3968 (see TODO.md): the
 // stack's Go adapter at the pin does not compile, so this example carries its
 // own callback trampolines. Each function below has the exact signature the
-// stack's header (CASBACnetStackDLL.h, included in place from the submodule)
-// gives the callback, and forwards to the //export'ed Go function of the same
+// stack's header gives the callback (the adapter's generated
+// CASBACnetStackAdapterTypes.h, included in place from the submodule), and forwards to the //export'ed Go function of the same
 // name with "go" in place of "fp" (callbacks.go).
 //
-// They are defined here, in a real .c file that cgo compiles once, and only
-// declared in callbacks.go's preamble: cgo also copies the preamble of a file
-// with //export functions into _cgo_export.c, so a definition there would be
-// a duplicate symbol at link time.
+// They are defined here, in a real .c file that cgo compiles once: cgo also
+// copies the preamble of a file with //export functions into _cgo_export.c, so
+// a definition there would be a duplicate symbol at link time. The
+// cgobridge_register* functions at the end hand them to the stack's
+// BACnetStack_RegisterCallback* pointers (the adapter's DLL mode); the C
+// compiler checks each against the generated callback type.
 //
 // _cgo_export.h is the cgo-generated header that declares the //export'ed Go
 // functions. cgo does not emit `const` in it, hence the casts on the
@@ -22,7 +24,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "CASBACnetStackDLL.h"
+#include "CASBACnetStackAdapter.h"
 #include "_cgo_export.h"
 
 // Transport and time
@@ -55,3 +57,16 @@ bool fpCallbackGetPropertyUnsignedInteger(const uint32_t deviceInstance, const u
 bool fpCallbackGetPropertyOctetString(const uint32_t deviceInstance, const uint16_t objectType, const uint32_t objectInstance, const uint32_t propertyIdentifier, uint8_t* value, uint32_t* valueElementCount, const uint32_t maxElementCount, const bool useArrayIndex, const uint32_t propertyArrayIndex, uint32_t* errorCode) {
 	return goCallbackGetPropertyOctetString(deviceInstance, objectType, objectInstance, propertyIdentifier, value, valueElementCount, maxElementCount, useArrayIndex, propertyArrayIndex, errorCode);
 }
+
+// Registration, called from callbacks.go
+void cgobridge_registerCommonCallbacks(void) {
+	BACnetStack_RegisterCallbackReceiveMessageForPort(fpCallbackReceiveMessageForPort);
+	BACnetStack_RegisterCallbackSendMessageForPort(fpCallbackSendMessageForPort);
+	BACnetStack_RegisterCallbackGetSystemTime(fpCallbackGetSystemTime);
+}
+void cgobridge_registerGetPropertyReal(void) { BACnetStack_RegisterCallbackGetPropertyReal(fpCallbackGetPropertyReal); }
+void cgobridge_registerGetPropertyEnumerated(void) { BACnetStack_RegisterCallbackGetPropertyEnumerated(fpCallbackGetPropertyEnumerated); }
+void cgobridge_registerGetPropertyUnsignedInteger(void) { BACnetStack_RegisterCallbackGetPropertyUnsignedInteger(fpCallbackGetPropertyUnsignedInteger); }
+void cgobridge_registerGetPropertyCharString(void) { BACnetStack_RegisterCallbackGetPropertyCharacterString(fpCallbackGetPropertyCharString); }
+void cgobridge_registerGetPropertyBool(void) { BACnetStack_RegisterCallbackGetPropertyBool(fpCallbackGetPropertyBool); }
+void cgobridge_registerGetPropertyOctetString(void) { BACnetStack_RegisterCallbackGetPropertyOctetString(fpCallbackGetPropertyOctetString); }

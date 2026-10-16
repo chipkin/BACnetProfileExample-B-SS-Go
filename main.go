@@ -72,6 +72,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -226,6 +227,27 @@ func spawnCommandReader() <-chan command {
 // 4. main()
 // -----------------------------------------------------------------------------
 
+// printMissingStackLibrary prints the series' message for a missing CAS
+// BACnet Stack library (the same text in every language port) to stderr.
+func printMissingStackLibrary(fileName string, searchedFolders []string) {
+	lookedIn := "(the executable's folder could not be found)"
+	if len(searchedFolders) > 0 {
+		lookedIn = strings.Join(searchedFolders, "\n                ")
+	}
+	fmt.Fprintf(os.Stderr, `ERROR: This example cannot run without the CAS BACnet Stack library.
+
+  Missing file: %s
+  Looked in:    %s
+
+The CAS BACnet Stack is a commercially licensed (paid) library from Chipkin.
+It is not included in this release, so the example cannot start without it.
+
+  - To license the CAS BACnet Stack: https://store.chipkin.com/contact-us
+  - Licensed customers: build the library from the cas-bacnet-stack submodule
+    (see README.md) and place %s next to this executable.
+`, fileName, lookedIn, fileName)
+}
+
 func fail(format string, arguments ...interface{}) int {
 	fmt.Printf("Error: "+format+"\n", arguments...)
 	return 1
@@ -233,13 +255,37 @@ func fail(format string, arguments ...interface{}) int {
 
 func run() int {
 	// --- Load the CAS BACnet Stack -----------------------------------------------
-	// cgo links the stack's library at build time (cgobridge/stack.go), so the
-	// operating system loads CASBACnetStack_x64_Release.dll /
-	// libCASBACnetStack_x64_Release.so before main() runs - there is no
-	// LoadBACnetFunctions() step as in the C++ edition. If the library cannot
-	// be found the program does not start at all (Windows exit code
-	// 0xC0000135): put submodules/cas-bacnet-stack/bin on PATH (README "Run").
-	stackVersion := cgobridge.StackVersion()
+	// The stack is a separately licensed library that a release of this example
+	// does not include. It is loaded at run time (cgobridge, through the stack's
+	// own adapter in DLL mode - LoadBACnetFunctions() in the C++ edition), from
+	// the folder that holds this executable or, in a development checkout, from
+	// submodules/cas-bacnet-stack/bin/. No other BACnetStack_* call may come
+	// before it. --help and --version still work without it.
+	arguments := os.Args[1:]
+	stackFolder, searchedFolders := cgobridge.FindStackLibrary()
+	stackVersion := "not loaded (library not found)"
+	var loadError error
+	if stackFolder != "" {
+		if loadError = cgobridge.LoadStack(stackFolder); loadError == nil {
+			stackVersion = cgobridge.StackVersion()
+		} else {
+			stackVersion = "not loaded (" + loadError.Error() + ")"
+		}
+	}
+
+	// --- Command line + version --------------------------------------------------
+	// --help / --version print and exit, so handle them before we bind a socket.
+	if common.HandleHelpAndVersionArgs(arguments, appName, appVersion, stackVersion) {
+		return 0
+	}
+	if stackFolder == "" {
+		printMissingStackLibrary(cgobridge.StackLibraryFileName(), searchedFolders)
+		return 1
+	}
+	if loadError != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to load the CAS BACnet Stack from %s: %v\n", stackFolder, loadError)
+		return 1
+	}
 
 	// Application_Software_Version (12) is this example's own version, and
 	// Firmware_Revision (44) is the CAS BACnet Stack's - both computed once
@@ -247,12 +293,6 @@ func run() int {
 	common.ApplicationSoftwareVersion = appVersion
 	common.FirmwareRevision = stackVersion
 
-	// --- Command line + version --------------------------------------------------
-	// --help / --version print and exit, so handle them before we bind a socket.
-	arguments := os.Args[1:]
-	if common.HandleHelpAndVersionArgs(arguments, appName, appVersion, stackVersion) {
-		return 0
-	}
 	port := common.ParsePortArg(arguments, 47808)
 	deviceInstance := common.ParseDeviceIDArg(arguments, defaultDeviceInstance)
 	common.PrintVersion(appName, appVersion, stackVersion)

@@ -35,17 +35,16 @@ Go adapter, cgo derives the bindings from the header) cannot be used in place:
 
 **Workaround (port code, marked):** `cgobridge/callbacks.go` and
 `cgobridge/trampolines.c` carry the same trampoline pattern (C wrapper ->
-`//export`ed Go function), registered with a `(*[0]byte)(unsafe.Pointer(...))`
-cast; `cgobridge/stack.go` includes the header in place. The trampolines are
-declared with the header's exact parameter types, so a header change still
-fails the build. **When the adapter builds and is importable, delete
+`//export`ed Go function), registered in C (`cgobridge_register*` in
+`trampolines.c`) through the stack's generated C++ adapter in DLL mode
+(`adapters/cpp/`, compiled in place by `cgobridge/stack_adapter.c`), so the C
+compiler checks each trampoline against the generated callback type and a
+header change still fails the build. **When the adapter builds and is importable, delete
 `cgobridge/callbacks.go`'s trampolines and `cgobridge/trampolines.c` and use
 it.**
 
 ## Smaller notes
 
-- Windows has no rpath: the executable finds the stack's DLL only through
-  `PATH` (or a copy in the gitignored `build/`). README "Run" says so.
 - The interactive commands are line-mode (key + Enter, `u`/`d` for the arrows)
   because Go's standard library cannot read raw key presses. TUTORIAL.md
   "Interactive keys are a simplification".
