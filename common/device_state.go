@@ -5,15 +5,13 @@
 // =============================================================================
 // The device's mutable state, in one place.
 //
-// THIS IS THE SINGLE MOST IMPORTANT DESIGN POINT IN THIS EXAMPLE. Go's cgo
-// //export functions (the Get*Property callbacks in
-// cas_bacnet_stack/cas_bacnet_stack_adapter.go) must be top-level,
-// non-method, non-closure functions - cgo flatly refuses to export anything
-// else. So a callback CANNOT close over any main()-local variable the way
-// the C++ edition's lambdas or the Python edition's closures do; it can only
-// read package-level state.
+// The C++ edition keeps this state in file-level globals next to its
+// callbacks. The Go callbacks (property_dispatch.go) are plain top-level
+// functions too - the stack reaches them through cgo //export functions in
+// cgobridge/callbacks.go, which can only be top-level functions themselves -
+// so they read package-level state, never a main()-local variable.
 //
-// So every piece of device state a callback needs to read (the Analog
+// Every piece of device state a callback needs to read (the Analog
 // Input's live value, the Network Port's discovered IP addressing, the
 // configured device instance and UDP port) lives in this one package-level
 // State value, guarded by a Mutex, and every callback locks it and reads
@@ -23,9 +21,10 @@
 //
 // A sync.Mutex is correct here (not e.g. an atomic-per-field scheme) because
 // the CAS BACnet Stack is single-threaded by contract - nothing in this
-// example spawns a goroutine that touches the stack, so the lock is never
-// contended by stack callbacks. It exists because the interactive-command
-// reader goroutine and main()'s tick loop both touch the same fields.
+// example spawns a goroutine that touches the stack, and the sensor
+// Simulation runs on main()'s tick loop, so the lock is never contended by
+// stack callbacks. It is there so a future goroutine (a hardware sampler,
+// say) can write these fields safely.
 // =============================================================================
 
 package common
@@ -43,10 +42,23 @@ type DeviceState struct {
 	// BacnetIPUDPPort is the BACnet/IP UDP port this device is listening on (--port).
 	BacnetIPUDPPort uint16
 
-	// AnalogInput1Value is Analog Input 1's live present value (degrees
-	// Celsius). Starts at 21.5 and is nudged by the interactive up/down
-	// commands. A real sensor would update this from hardware instead.
-	AnalogInput1Value float32
+	// The sensor objects' live values. The Get*Property callbacks only ever
+	// hand these back; main.go's sensor Simulation (and the interactive
+	// up/down commands) are the only things that change them. On a real
+	// device your hardware sampling updates them instead.
+	//
+	// AnalogInput1Value: degrees Celsius, starts at 21.5.
+	// BinaryInput1Value: 0 = inactive, 1 = active.
+	// MultiStateInput1Value: 1..MultiStateInputNumberOfStates.
+	AnalogInput1Value     float32
+	BinaryInput1Value     uint32
+	MultiStateInput1Value uint32
+
+	// AnalogInput1Reliability is Analog Input 1's Reliability (cl. 12.2.9):
+	// ReliabilityNoFaultDetected while the sensor is healthy,
+	// ReliabilityOpenLoop while its (simulated) wire is broken. The stack
+	// builds the FAULT bit of Status_Flags from this property by itself.
+	AnalogInput1Reliability uint32
 
 	// IPAddress/IPSubnetMask/IPDefaultGateway: BACnet/IP addressing the
 	// Network Port reports - filled in at start-up from the host's primary
@@ -59,9 +71,12 @@ type DeviceState struct {
 var (
 	stateMu sync.Mutex
 	state   = DeviceState{
-		DeviceInstance:    389001,
-		BacnetIPUDPPort:   47808,
-		AnalogInput1Value: 21.5,
+		DeviceInstance:          389001,
+		BacnetIPUDPPort:         47808,
+		AnalogInput1Value:       21.5,
+		BinaryInput1Value:       0,
+		MultiStateInput1Value:   1,
+		AnalogInput1Reliability: ReliabilityNoFaultDetected,
 	}
 )
 

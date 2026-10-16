@@ -29,7 +29,7 @@
 //
 // This type never sees a BACnet "connection string" - it deals in
 // host-order ip/port pairs. Packing the 6-byte connection string (4 IP
-// octets + 2 port bytes, port BIG-endian) is cas_example_helper's job,
+// octets + 2 port bytes, port BIG-endian) is cgobridge/callbacks.go's job,
 // exactly as in the other editions.
 // =============================================================================
 
@@ -96,17 +96,18 @@ func (s *SimpleUDP) Recv() (ReceivedDatagram, bool) {
 	}, true
 }
 
-// Send sends one datagram. Fire-and-forget by design: UDP gives no delivery
-// guarantee anyway, so a send error is logged, not propagated - same
-// behaviour as the other editions' SimpleUDP.send.
-func (s *SimpleUDP) Send(message []byte, toIP [4]byte, toPort uint16) {
+// Send sends one datagram and reports whether it went. UDP gives no
+// delivery guarantee anyway, so a send error is logged, not retried.
+func (s *SimpleUDP) Send(message []byte, toIP [4]byte, toPort uint16) bool {
 	if s.conn == nil {
-		return
+		return false
 	}
 	addr := &net.UDPAddr{IP: net.IPv4(toIP[0], toIP[1], toIP[2], toIP[3]), Port: int(toPort)}
 	if _, err := s.conn.WriteToUDP(message, addr); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: UDP send to %v:%d failed: %v\n", addr.IP, toPort, err)
+		return false
 	}
+	return true
 }
 
 // Shutdown closes the socket (best-effort).

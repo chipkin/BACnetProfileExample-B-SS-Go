@@ -1,66 +1,42 @@
 // SPDX-License-Identifier: CC0-1.0
 // Public-domain example code (CC0) - see ../LICENSE.
 //
-// cas_bacnet_stack_trampolines.c
+// trampolines.c - the C halves of the stack's callbacks
 // =============================================================================
-// The C-side halves of the three-layer cgo callback trampoline pattern
-// (C forward declaration in the .go file's cgo preamble -> C wrapper
-// defined HERE, matching the CAS BACnet Stack header's exact callback
-// signature -> the Go //export function in cas_bacnet_stack_adapter.go /
-// property_dispatch.go), as a REAL, separately-compiled translation unit
-// rather than function bodies inside the cgo preamble comment.
+// WORKAROUND - ADAPTER DEFECT, NOT FILED (see stack.go and TODO.md): the
+// stack's Go adapter at the pin does not compile, so this example carries its
+// own callback trampolines. Each function below has the exact signature the
+// stack's header (CASBACnetStackDLL.h, included in place from the submodule)
+// gives the callback, and forwards to the //export'ed Go function of the same
+// name with "go" in place of "fp" (callbacks.go).
 //
-// WHY THIS FILE EXISTS (a toolchain finding made while building this
-// example, not a stylistic choice - see CHANGELOG.md / AGENTS.md): cgo
-// compiles a .go file's preamble comment as C source TWICE - once for that
-// file's own object, and again inside the cgo-generated `_cgo_export.c`
-// (which needs the preamble's types/declarations in scope to define the
-// `//export` shims). A non-`static` function DEFINITION placed directly in
-// the preamble therefore becomes two conflicting definitions of the same
-// symbol at link time ("multiple definition of `fpCallbackReceiveMessageForPort`").
-// Marking the wrappers `static` avoids that duplicate-symbol error but then
-// breaks the OTHER direction: `cas_bacnet_stack_adapter.go`'s
-// `RegisterCallbacks()` takes each wrapper's address (`C.fpCallbackXxx`) as
-// a value to register with the stack, and that reference is emitted into
-// yet another translation unit which then cannot see a `static` symbol
-// defined in a different one. A real .c file, compiled exactly once by the
-// normal cgo/C build (any `.c` file next to a `.go` file with `import "C"`
-// is picked up automatically - no `#cgo` line needed), has neither problem:
-// one definition, ordinary external linkage, visible everywhere it is
-// declared `extern` (see the preamble's "C Callback Declarations" section).
+// They are defined here, in a real .c file that cgo compiles once, and only
+// declared in callbacks.go's preamble: cgo also copies the preamble of a file
+// with //export functions into _cgo_export.c, so a definition there would be
+// a duplicate symbol at link time.
 //
-// #include "_cgo_export.h" is the cgo-generated header declaring every
-// `//export`ed Go function (goCallbackReceiveMessageForPort, ...) with C
-// linkage and C-side integer/bool types - it is what lets a plain .c file
-// call into Go-implemented callbacks at all.
+// _cgo_export.h is the cgo-generated header that declares the //export'ed Go
+// functions. cgo does not emit `const` in it, hence the casts on the
+// read-only pointers the stack passes in.
 // =============================================================================
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "CASBACnetStackDLL.h" // for the CASBACnetTime typedef
+#include "CASBACnetStackDLL.h"
 #include "_cgo_export.h"
 
-// General Callbacks
+// Transport and time
 uint16_t fpCallbackReceiveMessageForPort(uint8_t* message, const uint16_t maxMessageLength, uint8_t* sourceConnectionString, uint8_t* sourceConnectionStringLength, uint8_t* destinationConnectionString, uint8_t* destinationConnectionStringLength, const uint8_t maxConnectionStringLength, uint32_t* networkPortInstance) {
 	return goCallbackReceiveMessageForPort(message, maxMessageLength, sourceConnectionString, sourceConnectionStringLength, destinationConnectionString, destinationConnectionStringLength, maxConnectionStringLength, networkPortInstance);
 }
 uint16_t fpCallbackSendMessageForPort(const uint8_t* message, const uint16_t messageLength, const uint8_t* connectionString, const uint8_t connectionStringLength, const uint32_t networkPortInstance, bool broadcast) {
-	// The header declares these `const` (the stack promises not to mutate
-	// them); goCallbackSendMessageForPort's cgo-generated export signature
-	// never has `const` on its pointer params (cgo does not emit `const` in
-	// its generated headers), so the cast below is just bridging that
-	// (harmless - the Go side only reads these bytes) - not a type-safety
-	// hole introduced by this vendored copy.
 	return goCallbackSendMessageForPort((uint8_t*)message, messageLength, (uint8_t*)connectionString, connectionStringLength, networkPortInstance, broadcast);
 }
 CASBACnetTime fpCallbackGetSystemTime() {
 	return goCallbackGetSystemTime();
 }
-void fpCallbackLogDebugMessage(const char* message, const uint16_t messageLength, const uint8_t messageType) {
-	goCallbackLogDebugMessage((char*)message, messageLength, messageType);
-}
 
-// Get Property Callbacks
+// Get*Property
 bool fpCallbackGetPropertyCharString(const uint32_t deviceInstance, const uint16_t objectType, const uint32_t objectInstance, const uint32_t propertyIdentifier, char* value, uint32_t* valueElementCount, const uint32_t maxElementCount, uint8_t* encodingType, const bool useArrayIndex, const uint32_t propertyArrayIndex, uint32_t* errorCode) {
 	return goCallbackGetPropertyCharString(deviceInstance, objectType, objectInstance, propertyIdentifier, value, valueElementCount, maxElementCount, encodingType, useArrayIndex, propertyArrayIndex, errorCode);
 }

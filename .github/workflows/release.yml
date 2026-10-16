@@ -1,18 +1,16 @@
-# Build the B-SS Go example and publish a GitHub Release (binaries + metrics.json) when a
-# vX.Y.Z tag is pushed. PRs run the same build + smoke test without publishing.
+# Build the B-SS Go example and publish a GitHub Release (the example's binaries + metrics.json)
+# when a vX.Y.Z tag is pushed. PRs run the same build, smoke test and Wire Tests without
+# publishing.
 #
-# Like the Rust sibling, this build has TWO stages: (1) build the native CAS BACnet Stack shared
-# library from the stack submodule's C++ source (MSBuild's ReleaseDll|x64 configuration on
-# Windows, g++ -shared on Linux - see README.md "Build the native CAS BACnet Stack library"),
-# then (2) `go build` this project (CGO_ENABLED=1 - this example is cgo-only) and copy that
-# native library next to its output so the vendored cgo adapter can find it at run time.
+# Two stages: (1) build the CAS BACnet Stack shared library from the stack submodule into
+# submodules/cas-bacnet-stack/bin/ (MSBuild ReleaseDll|x64 on Windows, g++ -shared on Linux -
+# README "Build"), then (2) `go build` this project with cgo, which includes the stack's header
+# in place from the submodule and links the library from that bin/ folder.
 #
-# THIS IS, AS FAR AS THIS PROJECT IS AWARE, THE FIRST AUTOMATED CI COMPILATION GATE THE STACK'S
-# GO ADAPTER (CASBACnetStackAdapter.go, vendored+fixed into cas_bacnet_stack/) HAS EVER HAD. It
-# shipped broken against the current 6.x header (renamed transport callbacks, a wrong time_t vs
-# CASBACnetTime type, only 2 of 6 needed Get*Property callbacks wired) - dead-golang allowlist
-# entries #1641/IFC-027 are tracked upstream but not fixed there. See AGENTS.md and
-# cas_bacnet_stack/README.md.
+# THE STACK LIBRARY IS NEVER RELEASED. It is built here only to compile and test the example:
+# no .dll / .so goes into any uploaded artifact or release asset (the "Package" step copies only
+# the example's own executable, metrics and docs, and then checks that). Users build the library
+# from the submodule themselves (README "Build").
 #
 # The CAS BACnet Stack is a PRIVATE git submodule: the repository secret CAS_STACK_PAT must
 # hold a PAT with read access to chipkin/cas-bacnet-stack.
@@ -35,18 +33,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # windows-2022 pins the VS 2022 (v143) toolset the stack's ReleaseDll config
-          # (and the released binaries) are built with. It also ships MinGW-w64/gcc via
-          # msys2 is NOT guaranteed, so this workflow installs it explicitly for cgo.
+          # windows-2022 pins the VS 2022 (v143) toolset the stack's ReleaseDll config is built
+          # with. cgo also needs a gcc (MinGW-w64), installed below.
           - os: windows-2022
             artifact: BACnetProfileExampleBSSGo-windows-x64
-            exe: bacnet-b-ss-go.exe
-            nativelib: CASBACnetStack_x64_Release.dll
+            exe: build/BACnetExampleBSS.exe
             metrics: metrics-windows.json
           - os: ubuntu-latest
             artifact: BACnetProfileExampleBSSGo-linux-x64
-            exe: bacnet-b-ss-go
-            nativelib: libCASBACnetStack_x64_Release.so
+            exe: build/BACnetExampleBSS
             metrics: metrics-linux.json
     steps:
       - name: Enable git long paths (Windows)
@@ -77,39 +72,37 @@ jobs:
           install: mingw-w64-x86_64-gcc
           path-type: inherit
 
-      - name: Build the native CAS BACnet Stack library (Windows - MSBuild ReleaseDll|x64)
+      - name: Build the CAS BACnet Stack library (Windows - MSBuild ReleaseDll|x64, into the submodule's bin/)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
             -latest -products * -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
-          & $msbuild submodules\cas-bacnet-stack\projects\msvs\BuildCASBACnetStack.sln `
+          & $msbuild submodules\cas-bacnet-stack\projects\msvs\CASBACnetStack\CASBACnetStack.vcxproj `
             /p:Configuration=ReleaseDll /p:Platform=x64 /p:PlatformToolset=v143 /m
           if ($LASTEXITCODE -ne 0) { throw "MSBuild failed with exit code $LASTEXITCODE" }
-          New-Item -ItemType Directory -Force lib | Out-Null
           Get-ChildItem submodules\cas-bacnet-stack\bin\CASBACnetStack_x64_Release.dll
-          Copy-Item submodules\cas-bacnet-stack\bin\CASBACnetStack_x64_Release.dll lib\
+          # The example loads the DLL from the submodule's bin/ (README "Run"): put it on PATH.
+          "$PWD\submodules\cas-bacnet-stack\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Build the native CAS BACnet Stack library (Linux - g++ shared)
+      - name: Build the CAS BACnet Stack library (Linux - g++ shared, into the submodule's bin/)
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          mkdir -p lib
+          mkdir -p submodules/cas-bacnet-stack/bin
           g++ -shared -fPIC -std=c++17 -O2 \
               -I submodules/cas-bacnet-stack/source \
               submodules/cas-bacnet-stack/source/*.cpp \
-              -o lib/libCASBACnetStack_x64_Release.so
-          ls -la lib/libCASBACnetStack_x64_Release.so
+              -o submodules/cas-bacnet-stack/bin/libCASBACnetStack_x64_Release.so
+          ls -la submodules/cas-bacnet-stack/bin/libCASBACnetStack_x64_Release.so
 
-      - name: go build (CGO_ENABLED=1)
+      - name: go vet + go build (CGO_ENABLED=1)
         shell: bash
         env:
           CGO_ENABLED: "1"
-        run: go build -o "${{ matrix.exe }}" .
-
-      - name: Copy the native library next to the Go binary
-        shell: bash
-        run: cp "lib/${{ matrix.nativelib }}" "${{ matrix.nativelib }}"
+        run: |
+          go vet . ./cgobridge ./common
+          go build -o "${{ matrix.exe }}" .
 
       - name: Smoke test + metrics (starts, binds, stays up; measures time to 'ready')
         shell: bash
@@ -128,14 +121,14 @@ jobs:
           cat smoke.log
           bytes=$(stat -c %s "${{ matrix.exe }}" 2>/dev/null || wc -c < "${{ matrix.exe }}")
           sha=$(sha256sum "${{ matrix.exe }}" | cut -c1-16)
-          stackver=$(grep -oE 'CAS BACnet Stack v[0-9.]+' smoke.log | head -1 | grep -oE '[0-9.]+' || true)
+          stackver=$(grep -oE 'CAS BACnet Stack version: [0-9.]+' smoke.log | head -1 | grep -oE '[0-9.]+$' || true)
           appver=$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' smoke.log | head -1 || true)
           cat > "${{ matrix.metrics }}" <<EOF
           {
             "example": "BACnetProfileExampleBSSGo",
             "app_version": "$appver",
             "os": "${{ matrix.os }}",
-            "link_mode": "cgo-build-time-link",
+            "link_mode": "cgo-shared-library",
             "stack_commit": "${{ steps.stack.outputs.sha }}",
             "stack_version": "$stackver",
             "binary_bytes": $bytes,
@@ -149,15 +142,29 @@ jobs:
           cat "${{ matrix.metrics }}"
           { echo '### metrics (${{ matrix.os }})'; echo '```json'; cat "${{ matrix.metrics }}"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Package
+      # The Wire Tests (tests/README.md): discovery, the readings following the Simulation, and
+      # the Failure Modes, driven over BACnet/IP by Python peers. Python 3 standard library only.
+      - name: Wire Tests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 tests/run_wire_tests.py --exe "${{ matrix.exe }}"
+
+      - name: Package (the example only - never the CAS BACnet Stack library)
         shell: bash
         run: |
           mkdir -p dist
-          cp "${{ matrix.exe }}" dist/ 2>/dev/null || true
-          cp "${{ matrix.nativelib }}" dist/ 2>/dev/null || true
-          cp "${{ matrix.metrics }}" dist/
-          cp README.md TUTORIAL.md LICENSE dist/ 2>/dev/null || true
-          cp docs/PICS.md dist/ 2>/dev/null || true
+          cp "${{ matrix.exe }}" "${{ matrix.metrics }}" dist/
+          # The docs ship once, from the Linux build: the Windows checkout converts them
+          # to CRLF, so the two platforms' copies differ byte for byte and the release
+          # job's one-copy-per-name check refuses them.
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            cp README.md TUTORIAL.md LICENSE dist/
+            cp docs/PICS.md dist/
+          fi
+          if find dist \( -iname '*.dll' -o -iname '*.so' -o -iname '*.so.*' -o -iname '*.dylib' -o -iname '*.node' -o -iname '*.lib' \) | grep .; then
+            echo "FAIL: a CAS BACnet Stack binary is in the package - it is never released"; exit 1
+          fi
+          ls -l dist
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

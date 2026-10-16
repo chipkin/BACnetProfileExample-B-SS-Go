@@ -3,6 +3,61 @@
 All notable changes to this example. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-10-16
+
+A faithful Go port of the Profile-functional
+[BACnetProfileExample-B-SS-CPP](https://github.com/chipkin/BACnetProfileExample-B-SS-CPP)
+v1.3.0: the readings follow a sensor Simulation, a broken sensor is reported the
+BACnet way, and the C++ edition's Wire Tests run against this program unchanged.
+
+### Added
+
+- **The sensor Simulation** (`main.go` section 2, `sensorSimulationTick()`):
+  Analog Input 1 ramps 18.0 .. 26.0 C at 0.5 C a second, Binary Input 1 toggles
+  every 3 s, Multi-State Input 1 steps 1 -> 2 -> 3 -> 1 every 4 s. Outside the
+  BACnet Surface, labelled as Simulation in the README.
+- **Failure Mode - a broken sensor.** Analog Input 1 `Reliability` (optional,
+  now enabled and served) reads `open-loop` while the simulated wire is broken,
+  and the stack sets the FAULT bit of `Status_Flags` from it; the reading
+  freezes. The wire breaks only through the test-only hook
+  `CAS_EXAMPLE_TEST_SENSOR_FAULT_FILE` (an environment variable naming a file:
+  broken while the file exists), as in the C++ edition.
+- **Wire Tests**: `tests/` copied unchanged from the C++ edition (discovery,
+  sensing, failure modes) and `wiretest/` 0.7.0 vendored byte-identical. The
+  executable is built as `build/BACnetExampleBSS`, the path they expect.
+  Verified on Windows: 3 runs in a row, 36/36 checks each.
+- `TODO.md`: the stack's Go adapter defect this example works around.
+
+### Changed
+
+- **Stack Pin `ec60c718` -> `64b2cfac5`** (`6.x`, CAS BACnet Stack 6.0.23).
+- **The stack's adapter is used in place, never copied.** The vendored, edited
+  copy of the Go adapter (`cas_bacnet_stack/`) is gone. cgo now includes
+  `submodules/cas-bacnet-stack/source/CASBACnetStackDLL.h` in place and links
+  the library from `submodules/cas-bacnet-stack/bin/`, where it is built (and
+  where the program loads it from: `PATH` on Windows, rpath on Linux). The
+  stack's `adapters/golang/CASBACnetStackAdapter.go` does not compile at this
+  pin and is a `package main` sample, so `cgobridge/` carries the callback
+  trampolines it would provide, marked as a workaround (adapter defect, not
+  filed - TODO.md). `lib/` is gone.
+- `property_dispatch.go` (the example's own `getProperty*` callbacks) moved out
+  of the adapter folder into the main package, as section 3 of `main.go`;
+  `cgobridge` registers it per callback, like the C++ `main()`.
+- Start-up follows the C++ `main()` step for step: `--help` / `--version` before
+  the socket, the three-line version banner, `FYI: Listening for BACnet/IP on
+  UDP port ...`, the start-up I-Am to the local subnet broadcast, then `ready`.
+  The stack's debug-log callback is no longer registered (the C++ edition does
+  not register one).
+- Interactive commands read stdin byte by byte: `h`, `q`, `u`, `d` (key, then
+  Enter); a `q` written to a pipe quits at once, so the Wire Tests stop the
+  example cleanly.
+- `common/` 1.1.0 (see `common/CHANGELOG.md`).
+- Protocol_Revision 30 (from the stack at the pin).
+- `.gitignore` covers every stack binary name; `release.yml` builds the stack
+  only to compile and test, runs the Wire Tests on Linux, and never puts the
+  stack's `.dll` / `.so` into an artifact or release asset (it checks).
+- README, TUTORIAL, AGENTS.md and docs/PICS.md rewritten for the above.
+
 ## [1.0.2] - unreleased
 
 ### Changed

@@ -1,21 +1,27 @@
-# Go build artifacts
+# Go build output (README "Build": go build -o build/BACnetExampleBSS[.exe] .)
+build/
+BACnetExampleBSS
 bacnet-b-ss-go
-bacnet-b-ss-go.exe
 *.exe
 *.exe~
 *.test
 *.out
 
-# The built native library - not committed; build or copy it per README.md.
-# Keep the directory itself (and this note) tracked.
-lib/*
-!lib/.gitkeep
+# The CAS BACnet Stack library is never committed (and never released): build it
+# from the submodule into submodules/cas-bacnet-stack/bin/ (README "Build").
 *.dll
 *.so
+*.so.*
 *.dylib
+*.lib
+*.a
+*.exp
+*.pdb
+*.node
 
-# Run artifacts from local smoke-testing
+# Wire Test / smoke-test leftovers
 *.log
+__pycache__/
 
 # Editors/OS
 .vscode/

@@ -3,6 +3,33 @@
 All notable changes to the vendored Go `common/` helpers. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-10-16
+
+Follows the C++ `common/` 3.4.0 conventions (BACnetProfileExample-B-SS-CPP).
+
+### Changed
+
+- `GetLocalIPv4()` reads the real netmask of the primary interface (the one the
+  OS routes outbound traffic through) instead of assuming a /24, and returns
+  `Found`. With no interface: address and mask 0.0.0.0 and the limited
+  broadcast 255.255.255.255, as the C++ helper does (was 127.0.0.1/8).
+- `PrintVersion()` prints the series' three version lines (example, CAS BACnet
+  Stack, `common/`); `PrintHelp()` / `HandleHelpAndVersionArgs()` print the C++
+  helper's `--help` text and the interactive command list (`h`, `q`, `u`, `d`).
+- `ParsePortArg()` / `ParseDeviceIDArg()` accept only a whole decimal token and
+  print the C++ helper's warning for an invalid value, keeping the default.
+- `SummarizeBacnetFrame()`: the one-line RX / TX frame summary (service, reject
+  and abort names), as the C++ helper prints.
+- `DeviceState` gains the Binary Input and Multi-State Input values and Analog
+  Input 1's `Reliability` (the Simulation's state).
+- `constants.go`: Reliability values, the `Reliability` property identifier and
+  `ErrorCodeInvalidArrayIndex`.
+- The transport callbacks that use `SimpleUDP` (C++ `common/` 3.2.0: a
+  broadcast with no connection string goes to the subnet broadcast; 3.4.0: a
+  broadcast addressed to this socket itself goes to the subnet broadcast) live
+  in `cgobridge/callbacks.go`, because cgo requires `//export` functions to be
+  in the package with `import "C"`. `common/` stays cgo-free.
+
 ## [1.0.0] - 2026-09-16
 
 ### Added

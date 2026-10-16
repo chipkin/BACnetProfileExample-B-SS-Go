@@ -2,7 +2,7 @@
 // Public-domain example code (CC0) - see ../LICENSE.
 
 // Package common holds the BACnet enumeration values and device state shared
-// between main.go and the cas_bacnet_stack adapter package.
+// between main.go and the cgobridge package.
 //
 // Every value matches the BACnet standard (ANSI/ASHRAE 135) and the CAS
 // BACnet Stack enumerations, and every constant name matches the
@@ -41,6 +41,7 @@ const (
 	PropertyIdentifierIPAddress                  uint32 = 400
 	PropertyIdentifierIPSubnetMask               uint32 = 411
 	PropertyIdentifierIPDefaultGateway           uint32 = 401
+	PropertyIdentifierReliability                uint32 = 103
 )
 
 // -- BACnet engineering units (Engineering_Units enumeration) ---------------
@@ -81,6 +82,15 @@ const NetworkPortReferencePortNone uint32 = 4194303
 // -- Network_Number_Quality (BACnetNetworkNumberQuality, cl. 12.56.11) ------
 const NetworkNumberQualityUnknown uint8 = 0
 
+// -- BACnetReliability (cl. 12.2.9 / cl. 21) ----------------------------------
+// NO_FAULT_DETECTED while the sensor is healthy; OPEN_LOOP while its
+// (simulated) wire is broken. The stack builds the FAULT bit of Status_Flags
+// from Reliability by itself (cl. 12.2.7).
+const (
+	ReliabilityNoFaultDetected uint32 = 0
+	ReliabilityOpenLoop        uint32 = 4
+)
+
 // -- Character string encoding (cl. 20.2.9). 0 = UTF-8. ----------------------
 const CharacterStringEncodingUTF8 uint8 = 0
 
@@ -89,17 +99,10 @@ const CharacterStringEncodingUTF8 uint8 = 0
 const ErrorCodeInvalidArrayIndex uint32 = 42
 
 // NetworkPortInstance: this example's own Network Port object instance. Not
-// a BACnet enumeration value - just this example's own configuration.
-// Defined here (rather than as a main.go-local const) because the transport
-// callbacks in cas_bacnet_stack_adapter.go are plain package-level //export
-// functions that cannot capture a main()-local variable and need this value
-// at compile time to fill the out-param networkPortInstance.
+// a BACnet enumeration value - just this example's own configuration. main.go
+// hands it to cgobridge.SetNetworkPortInstance() so the transport callbacks
+// and the start-up I-Am name it.
 const NetworkPortInstance uint32 = 1 // "Vermilion"
-
-// BACnetNetworkPortDefault: BACNET_NETWORK_PORT_DEFAULT - the sentinel a
-// single-transport receive callback should report when it has no better
-// per-message answer than "the device's only port".
-const BACnetNetworkPortDefault uint32 = 4194303
 
 // -- This example's device/object model --------------------------------------
 // See the top-level README.md / docs/objects.json for the full picture.
@@ -117,8 +120,6 @@ const (
 	BinaryInputInstance           uint32 = 1 // "Emerald"
 	MultiStateInputInstance       uint32 = 1 // "Hot Pink"
 	MultiStateInputNumberOfStates uint32 = 3
-	BinaryInput1Value             uint32 = 0    // inactive - the series-wide starting value
-	MultiStateInput1Value         uint32 = 1    // state 1 ("On")
 	MaxApduLength                 uint32 = 1476 // BACnet/IP APDU length
 )
 

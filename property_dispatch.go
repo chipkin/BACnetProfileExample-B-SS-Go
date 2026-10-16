@@ -1,42 +1,67 @@
 // SPDX-License-Identifier: CC0-1.0
-// Public-domain example code (CC0) - see ../LICENSE.
+// Public-domain example code (CC0) - see LICENSE.
 
-// property_dispatch.go
+// property_dispatch.go - section 3 of main.go: the Get*Property callbacks
 // =============================================================================
-// The property-to-callback mapping for this B-SS example's device model,
-// called from the //export'd goCallbackGetProperty* trampolines in
-// cas_bacnet_stack_adapter.go. Mirrors the Rust sibling's main.rs
-// get_property_* functions field-for-field (same object/property routing),
-// adapted to Go idiom (value, ok) instead of writing through a raw pointer
-// directly in these dispatch functions - the trampolines do the unsafe
-// pointer write, these functions stay pure Go.
+// The stack calls these when a client reads a property (main.go registers
+// them). For each data type the stack uses a separate callback. Each returns
+// (value, true) when it recognises the (object, property) pair, and
+// (zero, false) otherwise - the Go form of the C++ reference's "fill *value
+// and return true". cgobridge/callbacks.go writes the value into the stack's
+// buffer.
 //
-// ADDING AN OBJECT? See TUTORIAL.md "Add a second analog input" before you
-// do - a half-added object does NOT fail loudly (same caveat as every
-// sibling edition of this example).
+// THE errorCode OUT-PARAMETER. Every callback ends with errorCode *uint32.
+// The stack PRESETS it to success (84) before the call, and reads it only if
+// you return false. That gives a declining callback two distinct meanings:
+//
+//   1. return false and LEAVE errorCode ALONE  -> "I have no opinion on this
+//      property." The stack falls back to its own handling (see below).
+//   2. return false and SET *errorCode         -> "This read fails, with THIS
+//      BACnet error." The client gets exactly that Error-PDU.
+//
+// Option 2 is new (CAS BACnet Stack issue #974). Do not reach for it
+// reflexively - option 1 is still the right answer most of the time.
+//
+// WHAT false-WITHOUT-AN-ERROR-CODE ACTUALLY DOES - the opposite of what most
+// people assume. It does NOT reliably produce a BACnet error. The stack
+// errors only for the handful of properties it refuses to invent:
+// Present_Value, Number_Of_States, Relinquish_Default, Local_Date,
+// Local_Time, and a Network Port's APDU_Length (declining one of those reads
+// back as Error: read-access-denied). For EVERYTHING ELSE, a false return
+// means the stack SILENTLY SUBSTITUTES a default:
+//     Object_Name -> the literal string "undefined"
+//     Units       -> no-units (95)
+//     otherwise   -> a datatype zero-value
+//
+// AND THAT FALLBACK IS LORE-BEARING, WHICH IS WHY WE DO NOT "FIX" IT HERE.
+// The stack relies on the decline-and-fabricate path to answer required
+// properties the application is not expected to serve - the Device's
+// Max_APDU_Length_Accepted, APDU_Timeout and Number_Of_APDU_Retries among
+// them. Name an error on the catch-all return and those required properties
+// start failing instead of answering. So: set *errorCode ONLY where THIS
+// device knows the read is wrong. There is exactly one such case below
+// (State_Text with an out-of-range array index).
+//
+// ADDING AN OBJECT? READ THIS FIRST. These callbacks are not uniformly strict:
+//   - getPropertyReal / getPropertyEnumerated / getPropertyUnsignedInteger
+//     match on object type AND INSTANCE. A new instance falls through them.
+//   - getPropertyBool matches on TYPE ONLY, so a new instance gets
+//     Out_Of_Service for free.
+// So a half-added object does NOT fail loudly: its Present_Value errors, but
+// its Object_Name reads back as "undefined" and its Units as no-units, with no
+// error at all. Add two objects that way and BOTH report Object_Name
+// "undefined" - a spec violation that every scan tool shows as healthy. When
+// you add an instance, walk EVERY callback below, then read back every
+// required property of the new object and DIFF IT against the existing one.
+// TUTORIAL.md "Add a second analog input" lists the edits.
+//
+// Device state lives in common.DeviceState, reached through
+// common.WithState() (see common/device_state.go).
 // =============================================================================
 
-package casbacnetstack
+package main
 
-import (
-	"fmt"
-	"os"
-	"time"
-
-	"github.com/chipkin/bacnet-profile-example-b-ss-go/common"
-)
-
-// nowUnixSeconds returns the Unix epoch in SECONDS, for
-// goCallbackGetSystemTime.
-func nowUnixSeconds() int64 { return time.Now().Unix() }
-
-// logDebugMessage forwards the stack's debug log callback to stderr. The
-// message type byte is the stack's own severity enumeration
-// (source/CASBACnetStackDLL.h's LOG_DEBUG_MESSAGE_TYPE); we don't filter on
-// it here, matching the other editions' simplest-possible debug sink.
-func logDebugMessage(message string, messageType uint8) {
-	fmt.Fprintf(os.Stderr, "[CAS BACnet Stack][%d] %s\n", messageType, message)
-}
+import "github.com/chipkin/bacnet-profile-example-b-ss-go/common"
 
 // getPropertyReal answers REAL (floating point) - the Analog Input's
 // Present_Value.
@@ -64,7 +89,7 @@ func getPropertyReal(deviceInstance uint32, objectType uint16, objectInstance ui
 
 // getPropertyEnumerated answers ENUMERATED - the Binary Input's
 // Present_Value (0 = inactive, 1 = active) and Polarity, the Analog Input's
-// Units, and the Network Port's BACnet_IP_Mode.
+// Units and Reliability, and the Network Port's BACnet_IP_Mode.
 func getPropertyEnumerated(deviceInstance uint32, objectType uint16, objectInstance uint32, propertyIdentifier uint32, useArrayIndex bool, propertyArrayIndex uint32, errorCode *uint32) (uint32, bool) {
 	var result uint32
 	var ok bool
@@ -76,7 +101,7 @@ func getPropertyEnumerated(deviceInstance uint32, objectType uint16, objectInsta
 			if propertyIdentifier == common.PropertyIdentifierPresentValue {
 				// ON REAL HARDWARE: return your cached input state here -
 				// the same rule as getPropertyReal above applies.
-				result, ok = common.BinaryInput1Value, true
+				result, ok = s.BinaryInput1Value, true
 				return
 			}
 			if propertyIdentifier == common.PropertyIdentifierPolarity {
@@ -84,11 +109,20 @@ func getPropertyEnumerated(deviceInstance uint32, objectType uint16, objectInsta
 				return
 			}
 		}
-		if objectType == common.ObjectTypeAnalogInput &&
-			objectInstance == common.AnalogInputInstance &&
-			propertyIdentifier == common.PropertyIdentifierUnits {
-			result, ok = common.EngineeringUnitsDegreesCelsius, true
-			return
+		if objectType == common.ObjectTypeAnalogInput && objectInstance == common.AnalogInputInstance {
+			if propertyIdentifier == common.PropertyIdentifierUnits {
+				result, ok = common.EngineeringUnitsDegreesCelsius, true
+				return
+			}
+			// Reliability (enabled in main.go). The stack also reads it
+			// through this callback to build Status_Flags, so once enabled it
+			// must always answer: if it declines, the stack silently
+			// substitutes 0 (no-fault-detected), and the sensor reports
+			// itself healthy forever.
+			if propertyIdentifier == common.PropertyIdentifierReliability {
+				result, ok = s.AnalogInput1Reliability, true
+				return
+			}
 		}
 		if objectType == common.ObjectTypeNetworkPort &&
 			objectInstance == common.NetworkPortInstance &&
@@ -114,7 +148,7 @@ func getPropertyUnsignedInteger(deviceInstance uint32, objectType uint16, object
 		}
 		if objectType == common.ObjectTypeMultiStateInput && objectInstance == common.MultiStateInputInstance {
 			if propertyIdentifier == common.PropertyIdentifierPresentValue {
-				result, ok = common.MultiStateInput1Value, true // valid range is 1..Number_Of_States
+				result, ok = s.MultiStateInput1Value, true // valid range is 1..Number_Of_States
 				return
 			}
 			if propertyIdentifier == common.PropertyIdentifierNumberOfStates {
@@ -174,6 +208,34 @@ func getPropertyBool(deviceInstance uint32, objectType uint16, objectInstance ui
 	return result, ok
 }
 
+// getPropertyOctetString answers OCTET STRING - the Network Port's
+// BACnet/IP addressing. The stack cannot know the host's IP, so the
+// application must supply IP_Address and IP_Subnet_Mask (and
+// IP_Default_Gateway). Each is four octets. The stack also reads IP_Address
+// (with BACnet_IP_UDP_Port) to build the port's six-octet MAC_Address - so if
+// this callback declines, all four read back as empty octet strings, with no
+// error.
+func getPropertyOctetString(deviceInstance uint32, objectType uint16, objectInstance uint32, propertyIdentifier uint32, useArrayIndex bool, propertyArrayIndex uint32, errorCode *uint32) ([]byte, bool) {
+	var result []byte
+	var ok bool
+	common.WithState(func(s *common.DeviceState) {
+		if deviceInstance != s.DeviceInstance ||
+			objectType != common.ObjectTypeNetworkPort ||
+			objectInstance != common.NetworkPortInstance {
+			return
+		}
+		switch propertyIdentifier {
+		case common.PropertyIdentifierIPAddress:
+			result, ok = append([]byte(nil), s.IPAddress[:]...), true
+		case common.PropertyIdentifierIPSubnetMask:
+			result, ok = append([]byte(nil), s.IPSubnetMask[:]...), true
+		case common.PropertyIdentifierIPDefaultGateway:
+			result, ok = append([]byte(nil), s.IPDefaultGateway[:]...), true
+		}
+	})
+	return result, ok
+}
+
 // getPropertyCharString answers CHARACTER STRING - Object_Name for each
 // object, the Multi-State Input's State_Text array, and the Device's
 // remaining identity strings (Description, Vendor_Name, Model_Name,
@@ -201,8 +263,12 @@ func getPropertyCharString(deviceInstance uint32, objectType uint16, objectInsta
 			// The one place in this file where naming an error is clearly
 			// right: the client asked for State_Text[n] and this object has
 			// no element n. That is not "no opinion" - it is a wrong read,
-			// and the spec has a code for it. Without this the client would
-			// silently receive an empty string.
+			// and the spec has a code for it. (At this Stack Pin the stack
+			// also checks n against the length getPropertyUnsignedInteger
+			// serves for index 0 and answers invalid-array-index before it
+			// gets here; this line is what still answers correctly if that
+			// length and this table ever disagree - without it the client
+			// would silently receive an empty string.)
 			if errorCode != nil {
 				*errorCode = common.ErrorCodeInvalidArrayIndex
 			}
