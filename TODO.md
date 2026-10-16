@@ -1,9 +1,9 @@
 # TODO
 
-Known defects outside this repository that it works around. None of them is
-filed upstream yet ("not filed").
+Known defects outside this repository that it works around, with their upstream
+issues.
 
-## Adapter defect, not filed: the Go adapter does not build at the Stack Pin
+## Adapter defect, [cas-bacnet-stack#3968](https://github.com/chipkin/cas-bacnet-stack/issues/3968): the Go adapter does not build at the Stack Pin
 
 `submodules/cas-bacnet-stack/adapters/golang/CASBACnetStackAdapter.go` at
 `64b2cfac5` (hand-maintained - `adapters/README.md` says no generator writes the
