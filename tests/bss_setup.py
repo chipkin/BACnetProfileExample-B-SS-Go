@@ -26,13 +26,13 @@ sys.path.insert(0, str(REPOSITORY))
 
 import wiretest  # noqa: E402  (the vendored harness at the repository root)
 
-# Match main.cpp.
+# Match main.go and common/constants.go (the Go port of BACnetProfileExample-B-SS-CPP's main.cpp).
 DEVICE_INSTANCE = 389001
 ANALOG_INPUT = (wiretest.OBJECT_TYPE_ANALOG_INPUT, 1)             # "Bronze"
 BINARY_INPUT = (wiretest.OBJECT_TYPE_BINARY_INPUT, 1)             # "Emerald"
 MULTI_STATE_INPUT = (wiretest.OBJECT_TYPE_MULTI_STATE_INPUT, 1)   # "Hot Pink"
 
-# The Simulation (main.cpp section 2): once a second the temperature moves 0.5 C
+# The Simulation (main.go section 2): once a second the temperature moves 0.5 C
 # between 18.0 and 26.0; the binary input toggles every 3 s; the multi-state input
 # steps 1 -> 2 -> 3 -> 1 every 4 s.
 ANALOG_INPUT_LOWEST, ANALOG_INPUT_HIGHEST, ANALOG_INPUT_STEP = 18.0, 26.0, 0.5
@@ -66,8 +66,8 @@ def parser(description):
     arguments = argparse.ArgumentParser(description=description, formatter_class=argparse.RawDescriptionHelpFormatter)
     arguments.add_argument("--exe", default=str(wiretest.default_exe(REPOSITORY, "BACnetExampleBSS")),
                            help="path to BACnetExampleBSS (default: build/BACnetExampleBSS)")
-    arguments.add_argument("--port", type=int, default=47821,
-                           help="the smart sensor's UDP port (default 47821)")
+    arguments.add_argument("--port", type=int, default=47822,
+                           help="the smart sensor's UDP port (default 47822)")
     return arguments
 
 

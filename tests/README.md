@@ -12,15 +12,22 @@ specific to this sensor is here. Python 3 standard library only - nothing to
 
 ## Running
 
-Build the example (README "Build"), then from the repository root:
+These scripts are the C++ reference's (`BACnetProfileExample-B-SS-CPP`
+`tests/`), run against this Go port. Build the CAS BACnet Stack library and
+the example (README "Build"), then from the repository root:
 
 ```bash
-python3 tests/run_wire_tests.py --exe build/BACnetExampleBSS
+python3 tests/run_wire_tests.py
 ```
 
-On Windows, `--exe build\Release\BACnetExampleBSS.exe`. It ends with
-`ALL WIRE TESTS PASSED` (exit 0) or the scripts that failed. `--port` (default
-47821) is the UDP port the test starts the sensor on. It takes about 40 seconds.
+`--exe` defaults to this port's build, `build/BACnetExampleBSS` (`.exe` on
+Windows, the name `go build -o` gives it in README "Build"); pass `--exe
+<path>` to test another build. The only changes from the reference's scripts
+are the default port, naming `main.go` where they name `main.cpp`, and
+`configuration_test.py`'s `--help` check, which names the options this port
+reads (it has no `--xml`). It ends with `ALL WIRE TESTS PASSED` (exit 0) or the
+scripts that failed. `--port` (default 47822) is the UDP port the test starts
+the sensor on. It takes about 35 seconds.
 CI (`.github/workflows/release.yml`) runs it on Linux after the smoke test.
 
 ## The setup
@@ -34,7 +41,7 @@ BACnetExampleBSS  UDP --port                 - Device 389001
 The Peer is a Python BACnet client (`wiretest.Client`), never another example's
 binary. It plays a BACnet client such as Chipkin BACnet Explorer, or a controller
 polling the sensor. `bss_setup.py` holds what the scripts share: the object and
-property numbers, the Simulation's rates (they match `main.cpp` section 2), and
+property numbers, the Simulation's rates (they match `main.go` section 2), and
 starting the example.
 
 A request unanswered after 0.6 s is sent again, up to 3 times
@@ -65,6 +72,32 @@ folder, and the sensor wire is broken for as long as that file exists.
    **`FD_Subscription_Lifetime` (419)** are each listed and read as a value - one
    check per issue (#20, #21, #22), the three reads Explorer 4.23.2.0 found
    failing.
+5. Device **`Database_Revision`** reads 5: the stack starts it at 0 and adds one
+   for each object added at start-up (the Device and its four objects), and
+   nothing changes the object database afterwards (cl. 12.11; docs/PICS.md).
+
+## `configuration_test.py` - the Device's identity is configurable
+
+BACnet requires the Device's Object_Identifier and Object_Name to be
+configurable (135-2024 cl. 12.1.1.3, 12.1.1.4); Object_Name must be unique
+across the internetwork, so two units cannot share a compile-time name. The
+sensor is started three ways, then asked for `--help`:
+
+1. **No options (control):** Device 389001 answers Who-Is, and its
+   `Object_Name` is the default `Chipkin Example B-SS`.
+2. **`--deviceID 389901 --deviceName "Chipkin Example B-SS Unit 2"`:** the
+   device answers Who-Is as 389901; `Object_Name` reads the configured name;
+   a read of Device 389001 gets Error OBJECT / UNKNOWN_OBJECT (1/31); the
+   ready line names the configured device; a Who-Has by the configured name
+   gets an I-Have from Device 389901 with that name (DM-DOB-B).
+3. **Boundaries:** an empty name and a 256-byte name each print a warning and
+   keep the default; a 255-byte name (the limit) reads back whole.
+4. **`--help`** lists `--port`, `--deviceID` and `--deviceName`, and neither
+   `--dcc-password` (a B-SS has no DeviceCommunicationControl) nor `--xml`.
+
+Mutation (2026-10-22, Windows): `getPropertyCharString` serving the constant
+`common.DeviceName` instead of the configured name fails 3 of 17 checks (the
+configured name, the Who-Has, the 255-byte name).
 
 ## `sensing_test.py` - the readings follow the sensor (the Profile Function)
 
@@ -104,8 +137,10 @@ A sensor that answers every read with a constant passes every check of
 
 ## Each check fails without its feature
 
-Run 2026-10-16 on Windows (STATIC build, relinked each time - the binary's
-mtime checked): one feature removed from `main.cpp`, rebuilt, the named script
+Run 2026-10-16 on Windows against the C++ reference (STATIC build, relinked
+each time - the binary's mtime checked; the same checks run against this
+port, whose `main.go` / `property_dispatch.go` have the same features under
+camelCase names): one feature removed from `main.cpp`, rebuilt, the named script
 run, the source restored. Every mutation but M9 / M9c is caught:
 
 | # | Feature removed (`main.cpp`) | Script | Fails with |
@@ -136,8 +171,8 @@ they pin what the stack answers for this device, as clause 15.5.1.3.1 names it.
 ## `discovery_test.py` fails without the #20-#22 fix
 
 The fix for #20-#22 is in the stack, so "without the fix" is the old Stack Pin.
-Run 2026-10-15, the same `main.cpp`, stack `6.x` @ `abd4cee1` (6.0.21) against
-`6.x` @ `64b2cfac5` (6.0.23):
+Run 2026-10-15 against the C++ reference, the same `main.cpp`, stack `6.x` @
+`abd4cee1` (6.0.21) against `6.x` @ `64b2cfac5` (6.0.23):
 
 | Stack | Windows (STATIC build) | Linux (WSL Ubuntu 22.04, SOURCE build) |
 |---|---|---|

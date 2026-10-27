@@ -29,7 +29,8 @@ cleverness, and keep it a faithful translation of the C++ `main.cpp`.
 - `common/` - cgo-free Go helper (UDP socket, IPv4, command line, BACnet
   constants, device state), with its own version (`CommonVersion`) and
   `common/CHANGELOG.md`. Never add `import "C"` here.
-- `tests/` - the Wire Tests, a verbatim copy of the C++ edition's `tests/`.
+- `tests/` - the Wire Tests, the C++ edition's `tests/` with this port's
+  default port (47822) and `main.go` named where they name `main.cpp`.
 - `wiretest/` - the series' Wiretest Harness 0.7.0, byte-identical to
   `BACnetProfileExample-B-SS-CPP/wiretest/`. **Never edit it**; report a
   needed change instead.
@@ -37,7 +38,7 @@ cleverness, and keep it a faithful translation of the C++ `main.cpp`.
   objects-and-properties block is generated from `docs/objects.json` by the
   series tool. Update `objects.json` with any callback change.
 - `submodules/cas-bacnet-stack/` - the CAS BACnet Stack (private submodule,
-  Stack Pin `64b2cfac5`). **Never edit anything under it.**
+  Stack Pin `6.x` @ `69b6249f`). **Never edit anything under it.**
 - `TODO.md` - known stack/adapter defects this example works around.
 
 ## The adapter rule
@@ -45,21 +46,29 @@ cleverness, and keep it a faithful translation of the C++ `main.cpp`.
 The stack's language adapters are used **in place** from the submodule, never
 copied, regenerated or hand-written into this repository. For Go that means:
 cgo `#include`s `CASBACnetStackDLL.h` from the submodule and generates the
-bindings itself. The stack's `adapters/golang/CASBACnetStackAdapter.go` does
-not compile at the pin (see TODO.md), so `cgobridge/callbacks.go` and
-`cgobridge/trampolines.c` carry the callback trampolines it would provide,
-marked as a workaround. Do not patch the submodule; when the adapter builds,
+bindings itself. The stack's `adapters/golang/` is an importable package at the pin, but
+this port has not switched to it (see TODO.md), so `cgobridge/callbacks.go` and
+`cgobridge/trampolines.c` carry the callback trampolines it provides, marked as a
+workaround. Do not patch the submodule; when this port switches to the adapter,
 replace the workaround with it.
 
 ## Build
 
 ```bash
 git submodule update --init --recursive
-# build the stack library into submodules/cas-bacnet-stack/bin/ (README "Build")
+cd submodules/cas-bacnet-stack
+# Windows: cmake --preset windows-x64-dll && cmake --build --preset windows-x64-dll-release && cmake --install build-windows-x64-dll --config Release
+# Linux:   cmake --preset linux-x64-release-shared && cmake --build --preset linux-x64-release-shared && cmake --install build-linux-x64-release-shared
+cd ../..
 CGO_ENABLED=1 go build -o build/BACnetExampleBSS .     # .exe on Windows
 go vet . ./cgobridge ./common
 ```
 
+`go build` does not build the stack's shared library - that is the separate
+CMake step in README "Build". CMake is the stack's only build: it no longer has
+`projects/msvs/` or `projects/linux/` (removed before `6.x` @ `29b83de6`).
+`cmake --install` puts the library in the submodule's `bin/`, where the example
+loads it from. Always a customer-interface build, never the test-tool library.
 A gcc must be on `PATH` for cgo (MinGW-w64 on Windows). Do not use `./...`: it
 walks into the submodule's own Go files. **Never commit or release the stack's
 DLL / `.so`** - it lives in the submodule's `bin/` (gitignored there), and
@@ -68,7 +77,7 @@ DLL / `.so`** - it lives in the submodule's `bin/` (gitignored there), and
 ## Run
 
 ```bash
-./build/BACnetExampleBSS [--port 47808] [--deviceID 389001]
+./build/BACnetExampleBSS [--port 47808] [--deviceID 389001] [--deviceName "Chipkin Example B-SS"]
 ```
 
 The stack library is loaded at run time (the stack's `adapters/cpp/` in DLL mode,

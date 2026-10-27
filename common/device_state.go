@@ -39,6 +39,10 @@ import "sync"
 type DeviceState struct {
 	// DeviceInstance is the BACnet Device instance (--deviceID, default 389001).
 	DeviceInstance uint32
+	// DeviceName is the Device object's Object_Name (--deviceName, default
+	// DeviceName in constants.go). It must be unique across the BACnet
+	// internetwork, so each unit is given its own at start-up.
+	DeviceName string
 	// BacnetIPUDPPort is the BACnet/IP UDP port this device is listening on (--port).
 	BacnetIPUDPPort uint16
 
@@ -72,6 +76,7 @@ var (
 	stateMu sync.Mutex
 	state   = DeviceState{
 		DeviceInstance:          389001,
+		DeviceName:              DeviceName,
 		BacnetIPUDPPort:         47808,
 		AnalogInput1Value:       21.5,
 		BinaryInput1Value:       0,

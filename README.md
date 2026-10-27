@@ -10,7 +10,7 @@ BACnet way.
 
 This is a faithful Go port of the reworked
 [BACnetProfileExample-B-SS-CPP](https://github.com/chipkin/BACnetProfileExample-B-SS-CPP)
-(v1.3.0): the same Device, objects, properties, Simulation, Failure Modes,
+(v1.4.0): the same Device, objects, properties, Simulation, Failure Modes,
 test-only hook and command-line options, proven by the same
 [Wire Tests](#wire-tests), which cannot tell the two apart on the wire.
 
@@ -19,10 +19,10 @@ test-only hook and command-line options, proven by the same
 - **[docs/PICS.md](docs/PICS.md)** - the Protocol Implementation Conformance
   Statement: every object, every property, and who answers it.
 
-> **Versions:** this document describes **example v1.1.0**, built and verified
-> against **CAS BACnet Stack 6.0.23** (`6.x` @ `64b2cfac5`, the `ReleaseDll`
-> shared library built from the submodule, its header included in place by
-> cgo), at **Protocol_Revision 30**, with the Go `common/` helper at **v1.1.0**
+> **Versions:** this document describes **example v1.2.0**, built and verified
+> against **CAS BACnet Stack 6.0.23** (`6.x` @ `69b6249f`, the shared
+> library built from the submodule with the stack's CMake, loaded at run time
+> through the stack's C++ adapter compiled in place by cgo), at **Protocol_Revision 30**, with the Go `common/` helper at **v1.2.0**
 > and `wiretest/` at **0.7.0**. Running the example prints all three versions -
 > if what it prints disagrees with this line, trust the program and check
 > `CHANGELOG.md`.
@@ -163,26 +163,28 @@ This is a **self-contained** project. It ships:
   trampolines (see [How the Go binding works](#how-the-go-binding-works)).
 - `common/` - the cgo-free Go helper (UDP socket, IPv4, command line, device
   state, BACnet constants).
-- `tests/` - the Wire Tests ([tests/README.md](tests/README.md)), copied
-  unchanged from the C++ edition; `wiretest/` - the series' shared Wiretest
+- `tests/` - the Wire Tests ([tests/README.md](tests/README.md)), the C++
+  edition's, with this port's default port (47822); `wiretest/` - the series' shared Wiretest
   Harness 0.7.0, vendored verbatim.
 - `docs/PICS.md` - the conformance statement; `docs/objects.json` - the input
   to its objects-and-properties generator.
 - `submodules/cas-bacnet-stack/` - the **CAS BACnet Stack as a git submodule**
   (private; requires a license - see above). cgo includes its
-  `source/CASBACnetStackDLL.h` in place; its MSVC / g++ build produces the
-  shared library, in its own `bin/` folder.
+  `source/CASBACnetStackDLL.h` in place; its CMake build produces the shared
+  library, which `cmake --install` puts in its own `bin/` folder.
 
 ## Prerequisites
 
 - **Go 1.20 or later** (verified with go1.21.6), with **cgo**
   (`CGO_ENABLED=1`).
 - **A C compiler for cgo.** On Windows that is **MinGW-w64 gcc** (for example
-  from MSYS2, or the one bundled with Strawberry Perl - verified with
-  `x86_64-w64-mingw32` gcc 13.2.0), separate from the MSVC toolchain that
-  builds the stack's DLL. On Linux, gcc.
-- **To build the stack's shared library:** on Windows, Visual Studio Build
-  Tools (MSBuild, C++); on Linux, a C++17 g++.
+  from MSYS2 or WinLibs, or the one bundled with Strawberry Perl - verified
+  with `x86_64-w64-mingw32` gcc 13.2.0 and with WinLibs' UCRT gcc 16.2.0),
+  separate from the MSVC toolchain that builds the stack's DLL. On Linux, gcc.
+- **To build the stack's shared library:** **CMake 3.25 or later** (4.2 or
+  later for the stack's Visual Studio 2026 presets) - the stack's only build.
+  On Windows, Visual Studio 2026 (or 2022) or its Build Tools with the C++
+  workload; on Linux, a C++17 toolchain (g++/clang++) and Ninja.
 - **Python 3** (standard library only) to run the Wire Tests.
 - Git (to fetch the stack submodule).
 
@@ -201,31 +203,49 @@ The library goes into the submodule's own `bin/` folder, where the example
 finds it at run time when it is run from this checkout. Do not commit it to this
 repository (it is gitignored, and never part of a release).
 
-**Windows** - the stack's MSVC project has a `ReleaseDll|x64` configuration
-that builds exactly this DLL, under exactly this name (a customer-interface
-build: no test-tool exports):
+The stack has **one build, CMake** (`CMakeLists.txt` and `CMakePresets.json`
+in the submodule; its README's "Building and testing" and AGENTS.md
+"Building" list the presets). Each preset builds into
+`submodules/cas-bacnet-stack/build-<preset>/`, and `cmake --install
+build-<preset>` copies the library into the submodule's `bin/`, under exactly
+the name the example loads. It is a customer-interface build (no test-tool
+exports). Run the commands from the submodule's folder, because `cmake
+--preset` reads `CMakePresets.json` from the current directory.
+
+**Windows** - the `windows-x64-dll` preset (Visual Studio 2026, CMake 4.2 or
+later; use `windows-x64-dll-vs2022` / `windows-x64-dll-vs2022-release` with
+Visual Studio 2022). PowerShell or a Developer Prompt:
 
 ```powershell
-& "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" `
-  submodules\cas-bacnet-stack\projects\msvs\CASBACnetStack\CASBACnetStack.vcxproj `
-  -p:Configuration=ReleaseDll -p:Platform=x64 -m
-# -> submodules\cas-bacnet-stack\bin\CASBACnetStack_x64_Release.dll
+cd submodules\cas-bacnet-stack
+cmake --preset windows-x64-dll
+cmake --build --preset windows-x64-dll-release
+cmake --install build-windows-x64-dll --config Release   # -> bin\CASBACnetStack_x64_Release.dll
+cd ..\..
 ```
 
-(Adjust the MSBuild path to your Visual Studio / Build Tools install.)
+The install step copies the DLL only: its import library has the stack's
+static-library name and stays in the build tree; the example does not need it
+(it opens the DLL at run time).
 
-**Linux** - build the shared library straight from the stack's sources:
+**Linux** - the `linux-x64-release-shared` preset (Ninja):
 
 ```bash
-mkdir -p submodules/cas-bacnet-stack/bin
-g++ -shared -fPIC -std=c++17 -O2 \
-    -I submodules/cas-bacnet-stack/source \
-    submodules/cas-bacnet-stack/source/*.cpp \
-    -o submodules/cas-bacnet-stack/bin/libCASBACnetStack_x64_Release.so
+cd submodules/cas-bacnet-stack
+cmake --preset linux-x64-release-shared
+cmake --build --preset linux-x64-release-shared
+cmake --install build-linux-x64-release-shared   # -> bin/libCASBACnetStack_x64_Release.so
+cd ../..
 ```
 
-Only the **Release** library is used: the adapter loads `CASBACnetStack_x64_Release`
-(`BACNET_LIB_FILE`), and there is no `DebugDll` configuration.
+The stack's own `.gitignore` already ignores `build-*/` and `bin/`, so the
+submodule stays clean. Only the **Release** library is used: the adapter loads
+`CASBACnetStack_x64_Release` (`BACNET_LIB_FILE`).
+
+(Before stack `6.x` @ `29b83de6` this README built the DLL with MSBuild from
+the stack's `projects/msvs/` Visual Studio project and the `.so` with a
+hand-written `g++ -shared` line. The stack has since removed `projects/msvs/`
+and `projects/linux/`; CMake is its only build.)
 
 ### 2. Build the example
 
@@ -274,18 +294,18 @@ Licensed customers build the library (see [Build](#build)) and put
 (Linux) next to the executable. `--help` and `--version` work without it.
 
 ```bash
-./build/BACnetExampleBSS --port 47821 --deviceID 12345
+./build/BACnetExampleBSS --port 47822 --deviceID 12345 --deviceName "Chipkin Example B-SS Unit 2"
 ```
 
 Expected output:
 
 ```
-BACnet B-SS (Smart Sensor) Example - Go v1.1.0
+BACnet B-SS (Smart Sensor) Example - Go v1.2.0
 CAS BACnet Stack version: 6.0.23.0
-Common helper (common/) version: 1.1.0
-FYI: Listening for BACnet/IP on UDP port 47821 (Network Port 1).
-TX 21 bytes to <your-subnet-broadcast>:47821 (broadcast) (Network Port 1) - Unconfirmed: I-Am
-FYI: Device 12345 ("Chipkin Example B-SS") ready. Vendor ID 389. Press 'h' then Enter for help.
+Common helper (common/) version: 1.2.0
+FYI: Listening for BACnet/IP on UDP port 47822 (Network Port 1).
+TX 21 bytes to <your-subnet-broadcast>:47822 (broadcast) (Network Port 1) - Unconfirmed: I-Am
+FYI: Device 12345 ("Chipkin Example B-SS Unit 2") ready. Vendor ID 389. Press 'h' then Enter for help.
 ```
 
 The device listens on UDP **47808** (BACnet/IP) by default. Allow that port
@@ -297,8 +317,12 @@ through your firewall. To use a different port, pass `--port`.
 |--------|---------|---------|
 | `--port <n>` | `47808` | UDP port to listen on (BACnet/IP). |
 | `--deviceID <n>` | `389001` | The device's BACnet instance number (BACnet requires this to be configurable). |
+| `--deviceName <text>` | `Chipkin Example B-SS` | The Device object's `Object_Name`, 1..255 bytes, no control characters. It must be unique across the BACnet internetwork, so give every unit its own (BACnet requires it to be configurable, like the instance). An invalid value prints a warning and keeps the default. |
 | `--help`, `-h` | - | Show usage and exit. |
 | `--version` | - | Print the example, stack and `common/` versions, then exit. |
+
+An invalid `--port`, `--deviceID` or `--deviceName` prints a warning and the
+default is used.
 
 ### Interactive commands
 
@@ -346,12 +370,14 @@ Use a BACnet client such as the
 
 The checks above, automated: a Python BACnet client (the Peer) drives the
 running example over BACnet/IP from outside it. Python 3 standard library only.
-The scripts are the C++ edition's `tests/`, **unchanged**: the Go build is a
-single executable at the path they expect (`build/BACnetExampleBSS`).
+The scripts are the C++ edition's `tests/`, with this port's default port
+(47822): the Go build is a single executable at the path they expect
+(`build/BACnetExampleBSS`).
 
 | Script | What it proves |
 |---|---|
 | `discovery_test.py` | Who-Is, the Device's `Object_List`, then for every object its `Property_List` and a ReadProperty of every property it lists - every read comes back as a value. |
+| `configuration_test.py` | The Device's identity is configurable at start-up: with `--deviceID 389901 --deviceName "Chipkin Example B-SS Unit 2"`, Who-Is, ReadProperty `Object_Name` and Who-Has by name all see the configured instance and name (and 389001 is gone); without them, the defaults; an empty or 256-byte name keeps the default with a warning, a 255-byte one is kept whole. `--help` lists exactly the options the example reads. |
 | `sensing_test.py` | **The Profile Function.** Reads the three sensors again and again for 12 s; the readings follow the Simulation (0.5 C steps, a toggle every 3 s, states in order). Fails against a sensor that serves constants. |
 | `failure_modes_test.py` | **The Failure Modes.** Breaks the simulated sensor wire: `Reliability` `open-loop`, `Status_Flags` FAULT, a frozen reading; repairs it: all clear, the reading moves. Then the errors for an unknown object / property / array index, and the Reject for a WriteProperty. |
 
@@ -359,13 +385,13 @@ Run them all after the build (the executable finds the library in the
 submodule's `bin/`, see [Run](#run)):
 
 ```bash
-python tests/run_wire_tests.py                    # default --exe build/BACnetExampleBSS(.exe), --port 47821
-python tests/run_wire_tests.py --port 47821 --exe build/BACnetExampleBSS
+python tests/run_wire_tests.py                    # default --exe build/BACnetExampleBSS(.exe), --port 47822
+python tests/run_wire_tests.py --port 47822 --exe build/BACnetExampleBSS
 ```
 
-It ends with `ALL WIRE TESTS PASSED` (exit 0); about 25 seconds.
+It ends with `ALL WIRE TESTS PASSED` (exit 0); about 35 seconds.
 [tests/README.md](tests/README.md) says what each check proves. **Verified on
-Windows only** (3 runs in a row, 36/36 checks each); this port has not been
+Windows only** (54/54 checks at 1.2.0, no `[RETRY]` lines); this port has not been
 run on Linux. CI (`.github/workflows/release.yml`) runs them on Linux.
 
 ## How the Go binding works
@@ -388,10 +414,9 @@ reaches the stack through cgo.
   callback the stack calls goes C wrapper (`cgobridge/trampolines.c`, the
   header's exact signature) -> `//export`ed Go function
   (`cgobridge/callbacks.go`) -> the Go function `main.go` registered. The
-  stack's own Go adapter (`adapters/golang/CASBACnetStackAdapter.go`) holds
-  this same pattern, but at this Stack Pin it does not compile and is a
-  `package main` sample, so this example carries its own - marked as a
-  workaround, see [TODO.md](TODO.md).
+  stack's own Go adapter (`adapters/golang/`, an importable package at this Stack
+  Pin) holds this same pattern, but this port has not switched to it yet and
+  carries its own trampolines - marked as a workaround, see [TODO.md](TODO.md).
 - **Package-level state.** The callbacks are top-level functions reading
   `common.DeviceState` through a mutex (`common.WithState`) rather than
   variables local to `main()` - see `common/device_state.go`.

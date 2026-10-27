@@ -12,6 +12,6 @@ structural reason (package-level state, not closures).
 | File | What it is |
 |---|---|
 | `constants.go` | BACnet enumeration values + this example's device/object model constants |
-| `device_state.go` | the device's mutable state - package-level, mutex-guarded, read/written through `WithState()` |
+| `device_state.go` | the device's mutable state (sensor values, Reliability, IP addressing, device instance and Object_Name) - package-level, mutex-guarded, read/written through `WithState()` |
 | `simple_udp.go` | an application-owned, non-blocking UDP socket |
-| `cas_example_helper.go` | local IPv4 discovery, version / help printing, CLI argument parsing, the RX / TX frame summary (see its header comment for what is deliberately **not** here) |
+| `cas_example_helper.go` | local IPv4 discovery, version / help printing (`HandleHelpAndVersionArgs()` / `HandleHelpAndVersionArgsWithOptions()`), CLI argument parsing (`ParsePortArg()`, `ParseDeviceIDArg()`, `ParseDeviceNameArg()` for `--deviceName`), the RX / TX frame summary (see its header comment for what is deliberately **not** here) |

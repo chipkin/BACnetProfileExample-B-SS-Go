@@ -279,7 +279,10 @@ func getPropertyCharString(deviceInstance uint32, objectType uint16, objectInsta
 		if propertyIdentifier == common.PropertyIdentifierObjectName {
 			switch {
 			case objectType == common.ObjectTypeDevice && objectInstance == s.DeviceInstance:
-				result, ok = common.DeviceName, true
+				// The configured name (--deviceName), not the constant: it
+				// must be unique per unit. Who-Has by name resolves through
+				// this callback too.
+				result, ok = s.DeviceName, true
 			case objectType == common.ObjectTypeAnalogInput && objectInstance == common.AnalogInputInstance:
 				result, ok = "Bronze", true
 			case objectType == common.ObjectTypeBinaryInput && objectInstance == common.BinaryInputInstance:

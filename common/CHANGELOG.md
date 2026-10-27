@@ -3,6 +3,26 @@
 All notable changes to the vendored Go `common/` helpers. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - unreleased
+
+The C++ `common/` 3.5.0 `--deviceName` option, for the Go edition.
+
+### Added
+
+- `ParseDeviceNameArg(arguments, defaultDeviceName)`: the Device object's
+  Object_Name from `--deviceName <text>`, the same rules as the C++ edition -
+  1..`MaxDeviceNameLength` (255) bytes of UTF-8, no control characters (every
+  byte >= 0x20 and not 0x7F); anything else prints a warning and keeps the
+  default. Object_Name must be unique across the BACnet internetwork
+  (cl. 12.1.1.4), so it has to be configurable per unit, like the instance.
+- `HandleHelpAndVersionArgsWithOptions(..., showDeviceNameCLIOption)`: pass
+  `true` when the example reads `--deviceName`, and `--help` lists it.
+  `HandleHelpAndVersionArgs()` is unchanged (it prints exactly what 1.1.0
+  printed).
+- `DeviceState.DeviceName` (`device_state.go`): the configured Object_Name,
+  which the property callbacks serve; `constants.go`'s `DeviceName` is its
+  default.
+
 ## [1.1.0] - 2026-10-16
 
 Follows the C++ `common/` 3.4.0 conventions (BACnetProfileExample-B-SS-CPP).

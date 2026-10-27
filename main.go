@@ -37,7 +37,8 @@
 // object that every BACnet device must have (colour names are a series
 // convention):
 //
-//     Device 389001          "Chipkin Example B-SS"    (instance configurable with --deviceID)
+//     Device 389001          "Chipkin Example B-SS"    (instance configurable with --deviceID,
+//                                                       Object_Name with --deviceName)
 //     Analog Input  1        "Bronze"     (REAL, degrees Celsius; ramps 18.0 .. 26.0)
 //     Binary Input  1        "Emerald"    (active / inactive; toggles every 3 s)
 //     Multi-State Input 1    "Hot Pink"   (an enumerated state, 1..3; steps every 4 s)
@@ -53,7 +54,7 @@
 //
 // Interactive commands (stdin, one key then Enter): h = help, q = quit,
 // u / d = nudge the simulated Analog Input 1 reading by +/-1.1. Command line:
-// --port <n>, --deviceID <n>, --help, --version.
+// --port <n>, --deviceID <n>, --deviceName <text>, --help, --version.
 //
 // Where things live: every C.BACnetStack_* call and every cgo callback is in
 // cgobridge/ (the CAS BACnet Stack header is used in place from the
@@ -85,7 +86,7 @@ import (
 // 1. Example configuration
 // -----------------------------------------------------------------------------
 const appName = "BACnet B-SS (Smart Sensor) Example - Go"
-const appVersion = "1.1.0"
+const appVersion = "1.2.0"
 
 // The device instance. BACnet requires this to be configurable, so it
 // defaults to 389001 and can be overridden with --deviceID.
@@ -275,7 +276,8 @@ func run() int {
 
 	// --- Command line + version --------------------------------------------------
 	// --help / --version print and exit, so handle them before we bind a socket.
-	if common.HandleHelpAndVersionArgs(arguments, appName, appVersion, stackVersion) {
+	// The last argument lists --deviceName in --help: this example reads it.
+	if common.HandleHelpAndVersionArgsWithOptions(arguments, appName, appVersion, stackVersion, true) {
 		return 0
 	}
 	if stackFolder == "" {
@@ -295,8 +297,12 @@ func run() int {
 
 	port := common.ParsePortArg(arguments, 47808)
 	deviceInstance := common.ParseDeviceIDArg(arguments, defaultDeviceInstance)
+	deviceName := common.ParseDeviceNameArg(arguments, common.DeviceName)
 	common.PrintVersion(appName, appVersion, stackVersion)
-	common.WithState(func(state *common.DeviceState) { state.DeviceInstance = deviceInstance })
+	common.WithState(func(state *common.DeviceState) {
+		state.DeviceInstance = deviceInstance
+		state.DeviceName = deviceName
+	})
 
 	// --- Bind the BACnet/IP socket -----------------------------------------------
 	// Tell the transport which Network Port object owns the socket. The stack
@@ -419,7 +425,7 @@ func run() int {
 	cgobridge.SendIAm(deviceInstance)
 
 	fmt.Printf("FYI: Device %d (\"%s\") ready. Vendor ID %d. Press 'h' then Enter for help.\n",
-		deviceInstance, common.DeviceName, common.VendorIdentifier)
+		deviceInstance, deviceName, common.VendorIdentifier)
 
 	// Ctrl+C quits cleanly too.
 	var running int32 = 1

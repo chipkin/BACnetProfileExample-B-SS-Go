@@ -5,10 +5,11 @@
 // =============================================================================
 // Shared plumbing for the BACnet examples - the Go edition of the C++
 // examples' common/CASExampleHelper.{h,cpp}. It follows the C++ helper's
-// conventions (common/ 3.4.0 in BACnetProfileExample-B-SS-CPP): the same
-// --help / --version text, the same --port / --deviceID parsing (an invalid
-// value prints a warning and the default is used), and the same one-line
-// RX / TX console summary of every BACnet frame.
+// conventions (common/ 3.4.0 in BACnetProfileExample-B-SS-CPP, plus 3.5.0's
+// --deviceName): the same --help / --version text, the same --port /
+// --deviceID / --deviceName parsing (an invalid value prints a warning and the
+// default is used), and the same one-line RX / TX console summary of every
+// BACnet frame.
 //
 // DEVIATION FROM THE C++ EDITION OF THIS FILE: there, RegisterCommonCallbacks()
 // / SendIAm() / PrintVersion() also call into the stack. Go's cgo has a
@@ -34,7 +35,7 @@ import (
 // CommonVersion is the version of the vendored common/ helper itself (NOT
 // the example's own version). Bump it whenever anything in common/
 // changes, and record the change in common/CHANGELOG.md.
-const CommonVersion = "1.1.0"
+const CommonVersion = "1.2.0"
 
 // LocalIPv4 holds the primary interface's address, netmask, and derived
 // broadcast address.
@@ -121,8 +122,18 @@ func PrintHelp(appName, appVersion, stackVersion string) {
 
 // HandleHelpAndVersionArgs prints --help (also -h, /?) or --version and
 // returns true when the program should exit (with 0) without starting the
-// device.
+// device. It prints exactly what 1.1.0 printed: --deviceName is not listed
+// (see HandleHelpAndVersionArgsWithOptions). Kept for an example that does
+// not read --deviceName; this one does, so main.go calls the other.
 func HandleHelpAndVersionArgs(arguments []string, appName, appVersion, stackVersion string) bool {
+	return HandleHelpAndVersionArgsWithOptions(arguments, appName, appVersion, stackVersion, false)
+}
+
+// HandleHelpAndVersionArgsWithOptions is HandleHelpAndVersionArgs with the
+// optional help lines: showDeviceNameCLIOption lists --deviceName, for an
+// example that reads it (ParseDeviceNameArg; added in 1.2.0, the Go edition
+// of the C++ common/ 3.5.0 showDeviceNameCliOption).
+func HandleHelpAndVersionArgsWithOptions(arguments []string, appName, appVersion, stackVersion string, showDeviceNameCLIOption bool) bool {
 	for _, argument := range arguments {
 		switch argument {
 		case "--help", "-h", "/?":
@@ -136,6 +147,13 @@ func HandleHelpAndVersionArgs(arguments []string, appName, appVersion, stackVers
 			fmt.Println("  --deviceID <n>    BACnet device instance (0..4194302). Each example in")
 			fmt.Println("                    this series has its own default so several can run on")
 			fmt.Println("                    one subnet at once.")
+			if showDeviceNameCLIOption {
+				fmt.Println("  --deviceName <text>")
+				fmt.Printf("                    The Device object's Object_Name (1..%d bytes, no\n", MaxDeviceNameLength)
+				fmt.Println("                    control characters). It must be unique across the BACnet")
+				fmt.Println("                    internetwork, so give every unit its own. Default: this")
+				fmt.Println("                    example's own name.")
+			}
 			fmt.Println("  --port <n>        BACnet/IP UDP port (1..65535). Default 47808 (0xBAC0).")
 			fmt.Println("                    Use a non-default port to avoid clashing with another")
 			fmt.Println("                    BACnet device already on 47808 on this host.")
@@ -197,6 +215,40 @@ func ParseDeviceIDArg(arguments []string, defaultDeviceID uint32) uint32 {
 		}
 	}
 	return defaultDeviceID
+}
+
+// MaxDeviceNameLength is the longest Device Object_Name --deviceName accepts,
+// in UTF-8 bytes. cgobridge copies a character string into the stack's
+// buffer of MAX_CHARACTER_STRING_SIZE (256 in this build), so a name this
+// long is served whole.
+const MaxDeviceNameLength = 255
+
+// ParseDeviceNameArg reads --deviceName <text>: the Device object's
+// Object_Name. Object_Name must be unique across the BACnet internetwork
+// (cl. 12.1.1.4, 12.11), so two units that share a compile-time name are
+// non-conformant the moment both are installed; this makes it per-unit
+// configurable at start-up, the way --deviceID makes the instance
+// configurable. Valid = 1..MaxDeviceNameLength bytes of UTF-8 and no control
+// characters (a name must be printable); anything else prints a warning and
+// the default is used. The same rules as the C++ edition's
+// ParseDeviceNameArg(): every byte >= 0x20 and not 0x7F (the bytes of a UTF-8
+// multi-byte character are all >= 0x80).
+func ParseDeviceNameArg(arguments []string, defaultDeviceName string) string {
+	for argumentIndex := 0; argumentIndex+1 < len(arguments); argumentIndex++ {
+		if arguments[argumentIndex] == "--deviceName" {
+			name := arguments[argumentIndex+1]
+			printable := len(name) > 0 && len(name) <= MaxDeviceNameLength
+			for byteIndex := 0; printable && byteIndex < len(name); byteIndex++ {
+				printable = name[byteIndex] >= 0x20 && name[byteIndex] != 0x7F
+			}
+			if printable {
+				return name
+			}
+			fmt.Printf("Warning: ignoring invalid --deviceName (want 1..%d bytes, no control characters); using \"%s\".\n",
+				MaxDeviceNameLength, defaultDeviceName)
+		}
+	}
+	return defaultDeviceName
 }
 
 // -----------------------------------------------------------------------------

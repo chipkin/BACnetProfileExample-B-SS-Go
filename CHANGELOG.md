@@ -3,194 +3,107 @@
 All notable changes to this example. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.1.0] - 2026-10-16
+## [Unreleased]
 
-A faithful Go port of the Profile-functional
-[BACnetProfileExample-B-SS-CPP](https://github.com/chipkin/BACnetProfileExample-B-SS-CPP)
-v1.3.0: the readings follow a sensor Simulation, a broken sensor is reported the
-BACnet way, and the C++ edition's Wire Tests run against this program unchanged.
+_No changes yet._
+
+## [1.2.0] - 2026-10-27
+
+Built on CAS BACnet Stack 6.x (`69b6249f`).
 
 ### Added
 
-- **The sensor Simulation** (`main.go` section 2, `sensorSimulationTick()`):
-  Analog Input 1 ramps 18.0 .. 26.0 C at 0.5 C a second, Binary Input 1 toggles
-  every 3 s, Multi-State Input 1 steps 1 -> 2 -> 3 -> 1 every 4 s. Outside the
-  BACnet Surface, labelled as Simulation in the README.
-- **Failure Mode - a broken sensor.** Analog Input 1 `Reliability` (optional,
-  now enabled and served) reads `open-loop` while the simulated wire is broken,
-  and the stack sets the FAULT bit of `Status_Flags` from it; the reading
-  freezes. The wire breaks only through the test-only hook
-  `CAS_EXAMPLE_TEST_SENSOR_FAULT_FILE` (an environment variable naming a file:
-  broken while the file exists), as in the C++ edition.
-- **Wire Tests**: `tests/` copied unchanged from the C++ edition (discovery,
-  sensing, failure modes) and `wiretest/` 0.7.0 vendored byte-identical. The
-  executable is built as `build/BACnetExampleBSS`, the path they expect.
-  Verified on Windows: 3 runs in a row, 36/36 checks each.
-- `TODO.md`: the stack's Go adapter defect this example works around.
+- **`--deviceName <text>`** sets the Device's Object_Name at start-up, like
+  `--deviceID` sets its instance (ASHRAE 135-2024 cl. 12.1.1.3, 12.1.1.4).
+  Object_Name must be unique on the internetwork, so two units could not share
+  the compile-time name. The default is unchanged (`Chipkin Example B-SS`). A name
+  must be 1..255 bytes with no control characters, otherwise the example warns and
+  keeps the default. The name is not writable over the network. Documented in the
+  README, PICS and TUTORIAL.
+- **Wire Test** `tests/configuration_test.py` checks `--deviceID` and `--deviceName`
+  over Who-Is, ReadProperty and Who-Has, and that `--help` lists exactly the
+  options the example reads.
 
 ### Changed
 
-- **Stack Pin `ec60c718` -> `64b2cfac5`** (`6.x`, CAS BACnet Stack 6.0.23).
-- **The stack's adapter is used in place, never copied.** The vendored, edited
-  copy of the Go adapter (`cas_bacnet_stack/`) is gone. The stack's generated
-  C++ adapter (`adapters/cpp/`, DLL mode) is compiled in place from the
-  submodule (`cgobridge/stack_adapter.c`). The
-  stack's `adapters/golang/CASBACnetStackAdapter.go` does not compile at this
-  pin and is a `package main` sample, so `cgobridge/` carries the callback
-  trampolines it would provide, marked as a workaround (adapter defect, not
-  filed - TODO.md). `lib/` is gone.
-- `property_dispatch.go` (the example's own `getProperty*` callbacks) moved out
-  of the adapter folder into the main package, as section 3 of `main.go`;
-  `cgobridge` registers it per callback, like the C++ `main()`.
-- Start-up follows the C++ `main()` step for step: `--help` / `--version` before
-  the socket, the three-line version banner, `FYI: Listening for BACnet/IP on
-  UDP port ...`, the start-up I-Am to the local subnet broadcast, then `ready`.
-  The stack's debug-log callback is no longer registered (the C++ edition does
-  not register one).
-- Interactive commands read stdin byte by byte: `h`, `q`, `u`, `d` (key, then
-  Enter); a `q` written to a pipe quits at once, so the Wire Tests stop the
-  example cleanly.
-- **The stack library is loaded at run time, and a release ships without it**
-  (owner rule 2b). `LoadBACnetFunctions()` (`LoadLibrary`/`dlopen` through the
-  adapter) loads it from the executable's folder, else - in a development
-  checkout - from `submodules/cas-bacnet-stack/bin/`. The executable no longer
-  imports `CASBACnetStack_x64_Release.dll` (`objdump -p` lists only
-  `KERNEL32.dll` and the C runtime), so a missing library no longer stops it
-  before `main()` with `0xC0000135`: it prints the series' message, `ERROR: This
-  example cannot run without the CAS BACnet Stack library.`, with the file name
-  and every folder it looked in, to stderr, and exits 1. `--help` and
-  `--version` work without the library. `release.yml` packages the executable
-  and docs only, fails on any `CASBACnetStack*` / `.dll` / `.so` / `.node` in
-  the package, and runs the packaged executable without the library to check
-  the message and exit code.
-- `common/` 1.1.0 (see `common/CHANGELOG.md`).
-- Protocol_Revision 30 (from the stack at the pin).
-- `.gitignore` covers every stack binary name; `release.yml` builds the stack
-  only to compile and test, runs the Wire Tests on Linux, and never puts the
-  stack's `.dll` / `.so` into an artifact or release asset (it checks).
-- README, TUTORIAL, AGENTS.md and docs/PICS.md rewritten for the above.
-
-## [1.0.2] - unreleased
-
-### Changed
-
-- **Device renamed from the series' colour placeholder "Rainbow" to "Chipkin
-  Example B-SS"** so devices from different examples in the series are
-  distinguishable from each other on the same BACnet network - every example
-  previously announced the identical Object_Name "Rainbow", which made two
-  examples on one subnet indistinguishable by name. Sub-object names are
-  unchanged. `docs/colour-table.md` (series root) updated to match.
-  appVersion bumped 1.0.1 -> 1.0.2.
-
-## [1.0.1] - unreleased
+- **Updated to CAS BACnet Stack 6.x `69b6249f`.** No change to the Go code.
+- **Wire Tests default to this example's own port, 47822.** Runs that pass `--port`
+  are unchanged.
+- **PICS** now cites the CAS BACnet Stack's property profiles for the
+  objects-and-properties tables.
 
 ### Fixed
 
-- **`Application_Software_Version` (12) and `Firmware_Revision` (44) were
-  hardcoded to `"1.0.0"` and never updated as the example's real version
-  advanced** - the same issue found and fixed in
-  [BACnetProfileExample-B-SCHUB-CPP](https://github.com/chipkin/BACnetProfileExample-B-SCHUB-CPP)
-  v1.1.13 via a real device read with CAS BACnet Explorer. Both were plain
-  `const string`s in `common/constants.go`, consumed directly in
-  `cas_bacnet_stack/property_dispatch.go`.
+- **PICS: Database_Revision is 5**, not 0. The stack adds one per object created at
+  start-up (cl. 12.11): the Device and its four objects.
 
-  Go's `const` cannot hold a value only known at runtime (the stack's own
-  version) or reference a value from a package that imports it back
-  (`common` cannot import `main`, which imports `common`), so both were
-  changed from `const` to package-level `var` in `common/constants.go`,
-  given placeholder start-up defaults, and populated once in `main.go`'s
-  `run()` - right after `printVersion()` confirms the cgo-linked native
-  library works, before the socket is bound or any callback is registered:
-  `common.ApplicationSoftwareVersion` is set directly from `main.go`'s own
-  `appVersion`; `common.FirmwareRevision` is built from the CAS BACnet
-  Stack's own `bacnet.GetAPIMajorVersion()`/`GetAPIMinorVersion()`/
-  `GetAPIPatchVersion()`/`GetAPIBuildVersion()` (the same 4 calls
-  `printVersion()` already uses for the start-up banner) - it names the
-  underlying platform, not this app. Verified with `go build ./...` (clean)
-  and a real ReadProperty (`bacpypes3`) against the running device:
-  `Application_Software_Version = "1.0.1"`,
-  `Firmware_Revision = "6.0.21.0"`.
+### Compatibility
 
-## [1.0.0] - 2026-09-16
+- **The stack library is built with the stack's CMake presets.** The stack no
+  longer ships Visual Studio or Linux makefile projects. On Windows use
+  `cmake --preset windows-x64-dll`, `cmake --build --preset windows-x64-dll-release`
+  and `cmake --install build-windows-x64-dll --config Release` (the `-vs2022`
+  presets for Visual Studio 2022); on Linux use `linux-x64-release-shared`. The
+  install step puts the library in the submodule's `bin/`, where the example
+  looks for it. CMake is now a prerequisite. See the README.
+- **Go still needs cgo and a C compiler** (MinGW-w64 gcc on Windows, gcc on
+  Linux), separate from the compiler that builds the stack library.
 
-First Go implementation of the BACnet B-SS (Smart Sensor) profile in this
-series, pinned to CAS BACnet Stack `6.x` at commit
-`ec60c71801aad076a46c0ec783c5566a6cd0f3a0` (tag `v5.3.4-711-gec60c718`) -
-the same commit the Rust and Python siblings already built against, so the
-prebuilt `CASBACnetStack_x64_Release.dll` was **reused, not rebuilt**
-(copied from the Rust sibling's `target/release/`).
+## [1.1.0] - 2026-10-16
+
+Built on CAS BACnet Stack 6.x (`64b2cfac`, 6.0.23). This is the first tagged
+release; it includes everything from the earlier 1.0.x development builds.
+
+The sensor now performs the B-SS Profile Function with live readings and a
+failure mode, matching the C++ example 1.3.0.
 
 ### Added
 
-- Full device/object model: Device 389001 "Rainbow" (vendor 389, Chipkin),
-  Analog Input 1 "Bronze", Binary Input 1 "Emerald", Multi-State Input 1
-  "Hot Pink", Network Port 1 "Vermilion" - see `docs/objects.json` and
-  `docs/PICS.md`.
-- `cas_bacnet_stack/` - the vendored + fixed Go cgo adapter. See
-  `cas_bacnet_stack/README.md` for the complete, itemized list of fixes.
-  In short: the vendored skeleton
-  (`submodules/cas-bacnet-stack/adapters/golang/CASBACnetStackAdapter.go`)
-  **did not compile** against the current `6.x` header - two callbacks had
-  been renamed/widened (`*ForPort`), one extern declaration used the wrong
-  C type (`time_t` vs. `CASBACnetTime`), and 4 of the 6 `Get*Property`
-  callbacks this device model needs were never wired at all. All fixed in
-  this repository's own vendored copy only; `submodules/` was never
-  touched.
-- `common/` - cgo-free shared plumbing (device state, UDP transport, local
-  IPv4 discovery, CLI parsing). See `common/CHANGELOG.md`.
-- `main.go` - CLI (`--port`, `--deviceID`, `--version`, `--help`), device/
-  object setup, the run loop (`BACnetStack_Tick()` + a channel-drained
-  interactive-command reader), and graceful Ctrl+C shutdown.
-- `docs/objects.json`, `docs/PICS.md` - ported from the C++/Rust siblings,
-  content identical (this is the same device model), language notes
-  adjusted for Go.
-- `.github/workflows/release.yml` - CI: checks out the submodule, builds
-  the native library (MSBuild on Windows / g++ on Linux) or reuses a
-  pinned-commit match, builds the Go binary with `CGO_ENABLED=1`, runs a
-  smoke test (`--port <free port>`, poll for the "ready" log line, then
-  kill it), and releases on tag push.
+- **First Go B-SS (Smart Sensor) example** for the CAS BACnet Stack. It has a
+  Device (instance 389001), Analog Input 1, Binary Input 1, Multi-State Input 1
+  and Network Port 1; ReadProperty, Who-Is / I-Am and Who-Has / I-Have; options
+  `--port`, `--deviceID`, `--version` and `--help`; interactive commands; and a
+  clean Ctrl+C shutdown. See `docs/objects.json` and `docs/PICS.md`.
+- **Sensor simulation.** Once a second Analog Input 1 ramps between 18.0 and 26.0
+  C in 0.5 C steps, Binary Input 1 toggles every 3 s and Multi-State Input 1 steps
+  1, 2, 3 every 4 s.
+- **Analog Input 1 `Reliability`** reads `open-loop` while a simulated sensor wire
+  is broken, and the FAULT bit of `Status_Flags` follows (cl. 12.2.7, 12.2.9).
+- **Wire Tests** under `tests/` (discovery, sensing, failure modes), run against
+  the built example (`build/BACnetExampleBSS`).
+- `TODO.md` records a defect in the stack's Go adapter that this example works
+  around.
 
-### Verified findings (not assumed - see `cas_bacnet_stack/README.md` for detail)
+### Changed
 
-- **This is, as far as this project is aware, the first automated
-  compilation gate the CAS BACnet Stack's Go adapter has ever had** against
-  the current `6.x` header. It was silently broken (see "Added" above);
-  dead-golang allowlist entries #1641/IFC-027 are tracked upstream but not
-  fixed there. This example's `go build` in CI is that first gate.
-- **Go 1.26.3's cgo function-value representation** required every
-  `BACnetStack_RegisterCallback*` call to use an explicit
-  `(*[0]byte)(unsafe.Pointer(...))` conversion, not just the calls the
-  skeleton already cast that way - a toolchain-level finding made while
-  building this example, documented in full in
-  `cas_bacnet_stack/README.md` fix #2.
-- **The cgo preamble comment compiles twice** (once for the `.go` file's
-  own object, again inside the generated `_cgo_export.c`), so this example
-  moved the callback trampoline *definitions* into a real, separately
-  compiled `cas_bacnet_stack_trampolines.c` rather than leaving them as
-  function bodies inside the preamble comment - see that file's header
-  comment and `cas_bacnet_stack/README.md`'s "toolchain findings" section.
+- **Protocol_Revision 30** and **segmentation supported**, from the stack.
+- **The Device is named "Chipkin Example B-SS"** (was "Rainbow") so examples on
+  the same network can be told apart.
+- **The stack's adapter is used in place.** The stack's generated C++ adapter
+  (`adapters/cpp/`) is compiled through cgo from the submodule; the stack's own Go
+  adapter does not compile at this pin, so `cgobridge/` supplies the callback
+  trampolines. No copy of the adapter is vendored.
+- **The stack library is loaded at run time and releases ship without it.** It is
+  looked up next to the executable, then in `submodules/cas-bacnet-stack/bin/`
+  in a development checkout. If it is missing the example prints a clear message
+  (the file name and every folder searched, that the stack is a licensed Chipkin
+  product) and exits with code 1. `--help` and `--version` work without it.
+- Start-up follows the C++ example: `--help` / `--version` before the socket, the
+  version banner, the listening port, the start-up I-Am, then `ready`. Interactive
+  commands (`h`, `q`, `u`, `d`, then Enter) are read from stdin, and a `q` written
+  to a pipe quits at once.
+- `common/` 1.1.0 (see `common/CHANGELOG.md`).
 
-- **`go build ./...` / `go vet ./...` recurse into the submodule and fail**
-  (`submodules/cas-bacnet-stack/adapters/golang/CASBACnetStackAdapter.go`
-  has no `go.mod` of its own to stop Go's tooling from treating it as part
-  of this module, and it needs an `-I` include path this repository never
-  sets for it). Not a bug in this repository's own code - a submodule-
-  layout quirk. Use explicit package paths (`go build .`, `go vet .
-  ./cas_bacnet_stack ./common`) instead - see AGENTS.md.
+### Fixed
 
-### Native library
+- **Network Port 1 properties a client could not read** (`IP_DNS_Server`,
+  `FD_BBMD_Address`, `FD_Subscription_Lifetime`) now return values. Fixed by the
+  stack update.
+- **`Application_Software_Version` and `Firmware_Revision` were stale.** The first
+  now follows the example's version, the second is built from the running stack's
+  version.
 
-- Toolchain on the build machine: Go `go1.26.3`, MinGW-w64 gcc (cgo's C
-  compiler), MSBuild (Visual Studio 2022 Build Tools, for the native
-  library) - all already present; nothing needed installing.
-- `go build` result: **success, 0 errors**, after the fixes above.
-- Smoke test: `bacnet-b-ss-go.exe --port 47836`, native library copied next
-  to the built executable. Printed version
-  (`CAS BACnet Stack v6.0.21.0`), bound the UDP socket, logged
-  `FYI: Device 389001 ("Rainbow") ready. Vendor ID 389. Type 'h' + Enter for help.`,
-  stayed running for the observation window, and was killed cleanly. A
-  single benign stack log line about `BACnetDataLinkSC` ("UUID has not been
-  set") appears on every start - this is the stack's BACnet/SC
-  sub-component noting it was not configured, harmless for a BACnet/IP-only
-  device (the C#/Python/Rust siblings' own smoke-test logs show the
-  same line).
+### Compatibility
+
+- Build with explicit package paths (`go build .`, `go vet . ./cgobridge ./common`), not
+  `./...`, which recurses into the stack submodule and fails.

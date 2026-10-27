@@ -3,13 +3,13 @@
 # Public-domain example code (CC0) - see ../LICENSE.
 """B-SS Wire Test: a client reading the sensor gets what it measures now (DS-RP-B).
 
-    python3 tests/sensing_test.py [--exe build/BACnetExampleBSS] [--port 47821]
+    python3 tests/sensing_test.py [--exe build/BACnetExampleBSS] [--port 47822]
 
 ANSI/ASHRAE 135-2024 Annex L.4.5, the B-SS Profile Function: "Ability to provide
 values for any of its BACnet objects upon request". A sensor that answers with the
 same number forever answers every ReadProperty and still provides no value, so this
 test reads each sensor object again and again over ten seconds and checks that what
-it reads follows the sensor Simulation (main.cpp section 2):
+it reads follows the sensor Simulation (main.go section 2):
 
     Analog Input 1 "Bronze"        0.5 C a second, between 18.0 and 26.0
     Binary Input 1 "Emerald"       toggles every 3 s

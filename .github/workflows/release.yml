@@ -3,7 +3,8 @@
 # publishing.
 #
 # Two stages: (1) build the CAS BACnet Stack shared library from the stack submodule into
-# submodules/cas-bacnet-stack/bin/ (MSBuild ReleaseDll|x64 on Windows, g++ -shared on Linux -
+# submodules/cas-bacnet-stack/bin/ with the stack's CMake, its only build (the windows-x64-dll
+# preset on Windows, linux-x64-release-shared on Linux, then `cmake --install` into bin/ -
 # README "Build"), then (2) `go build` this project with cgo. The executable loads the library
 # at run time (the stack's own adapter in DLL mode): it has no load-time dependency on it, and
 # finds it next to itself or, in this checkout, in submodules/cas-bacnet-stack/bin/.
@@ -36,9 +37,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # windows-2022 pins the VS 2022 (v143) toolset the stack's ReleaseDll config is built
-          # with. cgo also needs a gcc (MinGW-w64), installed below.
-          - os: windows-2022
+          # windows-2025 serves the VS 2026 image (v145), which the stack's windows-x64-dll
+          # preset generates for and the stack's own release.yml builds its DLL on. cgo also
+          # needs a gcc (MinGW-w64), installed below.
+          - os: windows-2025
             artifact: BACnetProfileExampleBSSGo-windows-x64
             exe: build/BACnetExampleBSS.exe
             metrics: metrics-windows.json
@@ -75,27 +77,30 @@ jobs:
           install: mingw-w64-x86_64-gcc
           path-type: inherit
 
-      - name: Build the CAS BACnet Stack library (Windows - MSBuild ReleaseDll|x64, into the submodule's bin/)
+      - name: Build the CAS BACnet Stack library (Windows - CMake preset windows-x64-dll, into the submodule's bin/)
         if: runner.os == 'Windows'
         shell: pwsh
+        working-directory: submodules/cas-bacnet-stack
         run: |
-          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
-            -latest -products * -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
-          & $msbuild submodules\cas-bacnet-stack\projects\msvs\CASBACnetStack\CASBACnetStack.vcxproj `
-            /p:Configuration=ReleaseDll /p:Platform=x64 /p:PlatformToolset=v143 /m
-          if ($LASTEXITCODE -ne 0) { throw "MSBuild failed with exit code $LASTEXITCODE" }
-          Get-ChildItem submodules\cas-bacnet-stack\bin\CASBACnetStack_x64_Release.dll
+          cmake --preset windows-x64-dll
+          if ($LASTEXITCODE -ne 0) { throw "windows-x64-dll configure failed" }
+          cmake --build --preset windows-x64-dll-release
+          if ($LASTEXITCODE -ne 0) { throw "windows-x64-dll build failed" }
+          cmake --install build-windows-x64-dll --config Release
+          if ($LASTEXITCODE -ne 0) { throw "windows-x64-dll install failed" }
+          Get-ChildItem bin\CASBACnetStack_x64_Release.dll
 
-      - name: Build the CAS BACnet Stack library (Linux - g++ shared, into the submodule's bin/)
+      - name: Build the CAS BACnet Stack library (Linux - CMake preset linux-x64-release-shared, into the submodule's bin/)
         if: runner.os == 'Linux'
         shell: bash
+        working-directory: submodules/cas-bacnet-stack
         run: |
-          mkdir -p submodules/cas-bacnet-stack/bin
-          g++ -shared -fPIC -std=c++17 -O2 \
-              -I submodules/cas-bacnet-stack/source \
-              submodules/cas-bacnet-stack/source/*.cpp \
-              -o submodules/cas-bacnet-stack/bin/libCASBACnetStack_x64_Release.so
-          ls -la submodules/cas-bacnet-stack/bin/libCASBACnetStack_x64_Release.so
+          set -e
+          sudo apt-get install -y ninja-build
+          cmake --preset linux-x64-release-shared
+          cmake --build --preset linux-x64-release-shared
+          cmake --install build-linux-x64-release-shared
+          ls -la bin/libCASBACnetStack_x64_Release.so
 
       - name: go vet + go build (CGO_ENABLED=1)
         shell: bash

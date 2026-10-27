@@ -61,9 +61,11 @@ for a sensor that stopped answering.
 name, description and device name are in `common/constants.go` (the "CHANGE ALL
 OF THIS BEFORE YOU SHIP" block); `Application_Software_Version` is `appVersion`
 in `main.go` and `Firmware_Revision` is the stack's own version. `Object_Name`
-must be unique across the BACnet internetwork, and here it is a compile-time
-constant while the instance is runtime-configurable (`--deviceID`) - make it
-per-unit configurable in a real product.
+must be unique across the BACnet internetwork, so the device name in
+`common/constants.go` is only the default: each unit takes its own with
+`--deviceName` at start-up, as it takes its instance with `--deviceID`. Keep it
+per-unit configurable in a real product (a serial number, DIP switches, a
+config file, or this argument).
 
 ### Add a second analog input
 
@@ -236,6 +238,7 @@ callbacks in `property_dispatch.go`.)
 | `go build`: `cgo: C compiler "gcc" not found` | cgo needs a gcc. On Windows install MinGW-w64 (MSYS2) and put its `bin` on `PATH`. |
 | `go build`: `CASBACnetStackDLL.h: No such file or directory` | Submodules not checked out: `git submodule update --init --recursive`. |
 | `go build ./...` or `go vet ./...` fails inside `submodules/` | `./...` walks into the stack's own Go files. Name the packages: `go vet . ./cgobridge ./common`. |
+| `Warning: ignoring invalid --deviceName ...` | The name is empty, longer than 255 bytes, or has a control character; the default name is used. |
 | App prints *"Failed to bind UDP port 47808"* | Another BACnet program is already using 47808. Stop it, or run with `--port <n>`. |
 | Client sends Who-Is but sees no I-Am | Firewall is blocking UDP 47808, or the client and device are on different subnets (Who-Is is a broadcast). Allow the port; test on the same subnet first. |
 | Typing `q` does nothing | Press Enter after the key - the console is in line mode (see above). |

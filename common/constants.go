@@ -108,6 +108,19 @@ const NetworkPortInstance uint32 = 1 // "Vermilion"
 // See the top-level README.md / docs/objects.json for the full picture.
 // "CHANGE ALL OF THIS BEFORE YOU SHIP" if you turn this example into your
 // own device.
+//
+// DeviceName is the Device object's Object_Name - the DEFAULT one.
+//
+// THIS IS THE ONE THAT WILL BITE YOU. Object_Name must be unique across the
+// whole BACnet internetwork (cl. 12.1.1.4), so it must be per-unit
+// configurable, exactly like the instance. This example takes it at start-up
+// with --deviceName <text> (ParseDeviceNameArg(), stored in
+// DeviceState.DeviceName by main.go); DeviceName is only what a unit announces
+// when nobody configured it. Ship two units without --deviceName and BOTH
+// announce the same Object_Name - a spec violation, and a hard BTL failure.
+// In your product, configure the name per unit (a serial number, DIP switches,
+// a config file, or this argument) and change the default below to something
+// that says "not configured yet".
 const (
 	DeviceName        = "Chipkin Example B-SS"
 	DeviceDescription = "Chipkin CAS BACnet Stack example - B-SS (Smart Sensor) profile. " +
