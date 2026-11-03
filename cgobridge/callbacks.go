@@ -64,6 +64,13 @@ var (
 	boundPort           uint16
 	networkPortInstance uint32 = 1
 	localAddressing     common.LocalIPv4
+
+	// The last peer that sent to this socket from a UDP port other than the
+	// bound one (for example a test tool on this same PC, which cannot share our
+	// port). See goCallbackSendMessageForPort.
+	peerIP    [4]byte
+	peerPort  uint16
+	peerKnown bool
 )
 
 // SetNetworkPortInstance names the Network Port object that owns the socket.
@@ -131,6 +138,15 @@ func goCallbackReceiveMessageForPort(message *C.uint8_t, maxMessageLength C.uint
 		datagram.FromIP[0], datagram.FromIP[1], datagram.FromIP[2], datagram.FromIP[3], datagram.FromPort,
 		networkPortInstance, common.SummarizeBacnetFrame(datagram.Message[:length]))
 
+	// A BACnet/IP broadcast reaches only the bound UDP port, so a tool on this
+	// host on another port would never hear the answer to its Who-Is. Remember
+	// the last such peer; the send callback also unicasts to it.
+	if datagram.FromPort != boundPort {
+		peerIP = datagram.FromIP
+		peerPort = datagram.FromPort
+		peerKnown = true
+	}
+
 	source := unsafe.Slice((*byte)(unsafe.Pointer(sourceConnectionString)), 6)
 	copy(source[:4], datagram.FromIP[:])
 	source[4] = byte(datagram.FromPort >> 8)
@@ -160,7 +176,9 @@ func goCallbackSendMessageForPort(message *C.uint8_t, messageLength C.uint16_t,
 	var toIP [4]byte
 	var toPort uint16
 	isBroadcast := bool(broadcast)
+	stringless := false
 	if connectionString == nil || connectionStringLength == 0 {
+		stringless = true
 		toIP = localAddressing.Broadcast
 		toPort = boundPort
 		isBroadcast = true
@@ -187,6 +205,21 @@ func goCallbackSendMessageForPort(message *C.uint8_t, messageLength C.uint16_t,
 	fmt.Printf("TX %d bytes to %d.%d.%d.%d:%d%s (Network Port %d) - %s\n", sent,
 		toIP[0], toIP[1], toIP[2], toIP[3], toPort, broadcastLabel,
 		uint32(leavingByNetworkPort), common.SummarizeBacnetFrame(frame))
+
+	// Stack 6.x (1e7dffe2b) leaves the address of a broadcast it chooses itself
+	// (the I-Am answering a Who-Is, I-Have, I-Am-Router-To-Network,
+	// Network-Number-Is) to the host, and it went to the subnet broadcast above.
+	// That reaches only the bound UDP port, so also send the same frame unicast
+	// to the last peer that was on another port.
+	if stringless && peerKnown {
+		peerSent := 0
+		if udp.Send(frame, peerIP, peerPort) {
+			peerSent = len(frame)
+		}
+		fmt.Printf("TX %d bytes to %d.%d.%d.%d:%d (peer on another port) (Network Port %d) - %s\n", peerSent,
+			peerIP[0], peerIP[1], peerIP[2], peerIP[3], peerPort,
+			uint32(leavingByNetworkPort), common.SummarizeBacnetFrame(frame))
+	}
 	return C.uint16_t(sent)
 }
 

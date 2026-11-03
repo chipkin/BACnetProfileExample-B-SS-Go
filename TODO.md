@@ -1,6 +1,6 @@
 # TODO
 
-Open items and known limits at 1.2.0. Nothing here stops the example from
+Open items and known limits at 1.2.1. Nothing here stops the example from
 building, running or answering a client as [README.md](README.md) describes. Where
 a line has a `ref:` tag, quote it when you contact Chipkin support.
 
@@ -12,18 +12,19 @@ a line has a `ref:` tag, quote it when you contact Chipkin support.
   built with the stack's CMake presets (see the README) and the Windows job combines
   the Visual Studio image with a MinGW-w64 gcc for cgo. This was checked on Windows
   only; `.github/workflows/release.yml` has not been run since it changed to use the
-  presets. (ref: chipkin/chipkin-bacnet-testing-tool#455)
+  presets.
 - **`common/` sends a frame the stack marks as a broadcast to the one address the stack
   gave, as a unicast.** The shared `common/` helper (the same design is in every
   example of the series) does this, so a router or gateway's reply that cl. 6.4.2
   requires to be a broadcast goes only to the requester. No effect on this sensor has
   been observed. Fix: change `common/`, then copy it into every example.
-  (ref: chipkin/chipkin-bacnet-testing-tool#698)
 - **The device hears its own broadcasts.** The operating system delivers a datagram
   sent to the subnet broadcast address back to the sending socket, so the start-up
   I-Am (and any Who-Is answer) is received by the device itself. It is harmless on a
-  sensor. The stack does not yet treat these as its own transmissions, which on a
-  router becomes a broadcast storm. (ref: chipkin/cas-bacnet-stack#4604)
+  sensor. Since stack 6.x `1e7dffe2b` a router's BACnet/IP port drops its own looped-back
+  broadcast, so on a router this no longer becomes a broadcast storm; a device with
+  no router port, like this one, still receives its own. (ref:
+  chipkin/cas-bacnet-stack#4604)
 
 ## Not implemented, on purpose
 
@@ -46,7 +47,7 @@ a line has a `ref:` tag, quote it when you contact Chipkin support.
 
 ## Adapter defect, [cas-bacnet-stack#3968](https://github.com/chipkin/cas-bacnet-stack/issues/3968): the Go adapter did not build at the earlier Stack Pin
 
-**Status at the current Stack Pin (`6.x` @ `69b6249f`):** the upstream issue is
+**Status at the current Stack Pin (`6.x` @ `1e7dffe2b`):** the upstream issue is
 closed. The stack's `adapters/golang/` is now an importable package
 (`package casbacnetstack`, with its own `go.mod` and a separate
 `CASBACnetStackAdapterTrampolines.c`). This port has not switched to it yet: it

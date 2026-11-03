@@ -108,7 +108,7 @@ object-name: "Chipkin Example B-SS"
 object-type: DEVICE
 apdu-segment-timeout: 5000
 apdu-timeout: 10000
-application-software-version: "1.2.0"
+application-software-version: "1.2.1"
 description: "Chipkin CAS BACnet Stack example - B-SS (Smart Sensor) profile. Demonstrates DS-RP-B: ReadProperty plus Who-Is/I-Am with read-only sensor objects."
 device-address-binding: ?
 firmware-revision: "6.0.23.0"

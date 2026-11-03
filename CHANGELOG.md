@@ -5,7 +5,25 @@ All notable changes to this example. The format is based on
 
 ## [Unreleased]
 
-_No changes yet._
+## [1.2.1] - 2026-11-02
+
+Built on CAS BACnet Stack 6.x (`1e7dffe2b`).
+
+### Changed
+
+- **Updated to CAS BACnet Stack 6.x `1e7dffe2b`.** The README and PICS name the
+  new version. In this stack a router's BACnet/IP port no longer acts on its own
+  broadcast looped back by the host (cas-bacnet-stack#4604); this sensor is not a
+  router, and still hears its own start-up I-Am, which is harmless.
+- **A BACnet client on the same computer still hears the device's I-Am and
+  I-Have** (`cgobridge/callbacks.go`). This stack version leaves the address of a
+  broadcast it chooses itself, such as the I-Am that answers a Who-Is, to the
+  application, and the example sends it to the local subnet broadcast address.
+  That reaches only the device's own UDP port, so the example also sends the same
+  frame as a unicast to the last client that wrote to it from another UDP port.
+- **README:** the profile example table is the same in every example. The five
+  blocked examples (B-ACC, B-AACC, B-AS, B-ACCR, B-DAP) name the stack issue they
+  wait on, and B-LSC is no longer marked in progress.
 
 ## [1.2.0] - 2026-10-27
 

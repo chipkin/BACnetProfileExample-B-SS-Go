@@ -86,7 +86,7 @@ import (
 // 1. Example configuration
 // -----------------------------------------------------------------------------
 const appName = "BACnet B-SS (Smart Sensor) Example - Go"
-const appVersion = "1.2.0"
+const appVersion = "1.2.1"
 
 // The device instance. BACnet requires this to be configurable, so it
 // defaults to 389001 and can be overridden with --deviceID.

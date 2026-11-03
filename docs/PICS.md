@@ -19,7 +19,7 @@ see [README.md](../README.md).
 | **Vendor Identifier** | 389 |
 | **Product Name** | CAS BACnet Stack Example - B-SS |
 | **Product Model Number** | CAS BACnet Stack Example - B-SS |
-| **Application Software Version** | 1.2.0 |
+| **Application Software Version** | 1.2.1 |
 | **Firmware Revision** | 6.0.23.0 (the CAS BACnet Stack version) |
 | **BACnet Protocol Version** | 1 |
 | **BACnet Protocol Revision** | 30 |
@@ -73,7 +73,7 @@ rejection is part of the profile boundary, not a limitation to work around.
 
 Segmentation is **supported in both directions**
 (`Segmentation_Supported` = `segmented-both`), by the stack: at `6.x` @
-`69b6249f` the customer build (the stack's CMake defaults,
+`1e7dffe2b` the customer build (the stack's CMake defaults,
 `STACK_OPTION_TARGET_FULL`) compiles `STACK_OPTION_SEGMENTATION` in (stack
 #2992), and this example keeps the stack's defaults - `Max_Segments_Accepted`
 16 and `APDU_Segment_Timeout` 5000 ms, both read on the wire. Table 12-13

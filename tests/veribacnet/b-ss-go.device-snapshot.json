@@ -13,7 +13,7 @@
     "vendorId": 389
   },
   "identity": {
-    "applicationSoftwareVersion": "1.2.0",
+    "applicationSoftwareVersion": "1.2.1",
     "firmwareRevision": "6.0.23.0",
     "modelName": "CAS BACnet Stack Example - B-SS",
     "objectName": "Chipkin Example B-SS",
@@ -213,7 +213,7 @@
           "status": "ok",
           "value": {
             "tag": "characterString",
-            "value": "1.2.0"
+            "value": "1.2.1"
           }
         },
         "databaseRevision": {
